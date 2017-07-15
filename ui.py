@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'hugm.ui'
 #
-# Created: Thu Jul 13 04:31:53 2017
+# Created: Fri Jul 14 03:01:33 2017
 #      by: PyQt4 UI code generator 4.11.2
 #
 # WARNING! All changes made in this file will be lost!
@@ -40,16 +40,30 @@ class Ui_MainWindow(object):
         self.performFFCButton = QtGui.QPushButton(self.layoutWidget)
         self.performFFCButton.setObjectName(_fromUtf8("performFFCButton"))
         self.buttonRowLayout.addWidget(self.performFFCButton)
+        self.stepSpinBox = QtGui.QSpinBox(self.layoutWidget)
+        self.stepSpinBox.setMinimum(1)
+        self.stepSpinBox.setMaximum(512)
+        self.stepSpinBox.setObjectName(_fromUtf8("stepSpinBox"))
+        self.buttonRowLayout.addWidget(self.stepSpinBox)
         self.indexSpinBox = QtGui.QSpinBox(self.layoutWidget)
         self.indexSpinBox.setObjectName(_fromUtf8("indexSpinBox"))
         self.buttonRowLayout.addWidget(self.indexSpinBox)
+        self.allOnPushButton = QtGui.QPushButton(self.layoutWidget)
+        self.allOnPushButton.setObjectName(_fromUtf8("allOnPushButton"))
+        self.buttonRowLayout.addWidget(self.allOnPushButton)
+        self.allOffPushButton = QtGui.QPushButton(self.layoutWidget)
+        self.allOffPushButton.setObjectName(_fromUtf8("allOffPushButton"))
+        self.buttonRowLayout.addWidget(self.allOffPushButton)
+        self.chasePushButton = QtGui.QPushButton(self.layoutWidget)
+        self.chasePushButton.setObjectName(_fromUtf8("chasePushButton"))
+        self.buttonRowLayout.addWidget(self.chasePushButton)
         spacerItem = QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)
         self.buttonRowLayout.addItem(spacerItem)
         self.verticalLayout.addLayout(self.buttonRowLayout)
         self.splitter = QtGui.QSplitter(self.layoutWidget)
         self.splitter.setOrientation(QtCore.Qt.Vertical)
         self.splitter.setObjectName(_fromUtf8("splitter"))
-        self.imageLabel = MyLabel(self.splitter)
+        self.imageLabel = QtGui.QLabel(self.splitter)
         sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(9)
@@ -75,6 +89,8 @@ class Ui_MainWindow(object):
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow", None))
         self.performFFCButton.setText(_translate("MainWindow", "FFC", None))
+        self.allOnPushButton.setText(_translate("MainWindow", "All On", None))
+        self.allOffPushButton.setText(_translate("MainWindow", "All Off", None))
+        self.chasePushButton.setText(_translate("MainWindow", "Chase", None))
         self.imageLabel.setText(_translate("MainWindow", "TextLabel", None))
 
-from MyLabel import MyLabel

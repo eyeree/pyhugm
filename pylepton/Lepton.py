@@ -153,8 +153,8 @@ class Lepton(object):
       Lepton.capture_segment(self.__handle, self.__xmit_buf, self.__msg_size, self.__capture_buf[0])
       if retry_reset and (self.__capture_buf[20, 0] & 0xFF0F) != 0x1400: # make sure that this is a well-formed frame, should find line 20 here
         # Leave chip select deasserted for at least 185 ms to reset
-        if debug_print:
-          print("Garbage frame number reset waiting...")
+        #if debug_print:
+        print("Garbage frame number reset waiting...")
         time.sleep(0.185)
       else:
         break
@@ -176,5 +176,4 @@ class Lepton(object):
     if log_time:
       print("frame processed int {0}s, {1}hz".format(end-start, 1.0/(end-start)))
 
-    # TODO: turn on telemetry to get real frame id, sum on this array is fast enough though (< 500us)
-    return data_buffer, data_buffer.sum()
+    return data_buffer

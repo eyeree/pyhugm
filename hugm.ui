@@ -34,7 +34,38 @@
         </widget>
        </item>
        <item>
+        <widget class="QSpinBox" name="stepSpinBox">
+         <property name="minimum">
+          <number>1</number>
+         </property>
+         <property name="maximum">
+          <number>512</number>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QSpinBox" name="indexSpinBox"/>
+       </item>
+       <item>
+        <widget class="QPushButton" name="allOnPushButton">
+         <property name="text">
+          <string>All On</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="allOffPushButton">
+         <property name="text">
+          <string>All Off</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="chasePushButton">
+         <property name="text">
+          <string>Chase</string>
+         </property>
+        </widget>
        </item>
        <item>
         <spacer name="buttonRowSpacer">
@@ -56,7 +87,7 @@
        <property name="orientation">
         <enum>Qt::Vertical</enum>
        </property>
-       <widget class="MyLabel" name="imageLabel">
+       <widget class="QLabel" name="imageLabel">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
           <horstretch>0</horstretch>
@@ -90,13 +121,6 @@
    </widget>
   </widget>
  </widget>
- <customwidgets>
-  <customwidget>
-   <class>MyLabel</class>
-   <extends>QLabel</extends>
-   <header>MyLabel.h</header>
-  </customwidget>
- </customwidgets>
  <resources/>
  <connections/>
 </ui>
