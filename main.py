@@ -1,4 +1,5 @@
 from __future__ import print_function
+from __future__ import division
 
 # python
 import collections
@@ -31,16 +32,32 @@ class DisplayBase(object):
         pass
 
 
-Strand = collections.namedtuple('Strand', ['lower', 'upper', 'length'])
+Strand = collections.namedtuple('Strand', ['begin', 'end', 'length', 'slice'])
 
 
-def transform(t):
-    if t[0] < t[1]:
-        return Strand(t[0], t[1], (t[1] - t[0]) + 1)
-    else:
-        return Strand(t[1], t[0], (t[0] - t[1]) + 1)
+def strands(end_point_list):
+    result = []
+    for end_points in end_point_list:
+        if end_points[0] < end_points[1]:
+            result.append(
+                Strand(
+                    end_points[0], end_points[1],
+                    (end_points[1] - end_points[0]) + 1,
+                    slice(end_points[0], end_points[1] + 1, 1)
+                )
+            )
+        else:
+            result.append(
+                Strand(
+                    end_points[0], end_points[1],
+                    (end_points[0] - end_points[1]) + 1,
+                    slice(end_points[0], end_points[1] - 1, -1)
+                )
+            )
+    return result
 
-S = [transform(t) for t in
+
+S_STRANDS = strands(
     [
         (192, 210),    # 0
         (229, 211),    # 1
@@ -52,28 +69,31 @@ S = [transform(t) for t in
         (279, 269),    # 7
         (280, 286)     # 8
     ]
-]
+)
 
-R = [transform(t) for t in
+R_STRANDS = strands(
     [
-#        (   0,    0), #  0 (L)
-#        (   0,    0), #  1
-#        (   0,    0), #  2
-#        (   0,    0), #  3
-#        (   0,    0), #  4
-#        (   0,    0), #  5
-#        (   0,    0), #  6
-#        (   0,    0), #  7
-        (384, 415),    # 8
-        (448, 479)     # 9
-#        (   0,    0), # 10
-#        (   0,    0), # 11
-#        (   0,    0), # 12
-#        (   0,    0), # 13
-#        (   0,    0), # 14
-#        (   0,    0)  # 15 (R)
+        (   0,    1), #  0 (L)
+        (   0,    1), #  1
+        (   0,    1), #  2
+        (   0,    1), #  3
+        (   0,    1), #  4
+        (   0,    1), #  5
+        (   0,    1), #  6
+        (   0,    1), #  7
+        (384, 415),  # 08
+        (448, 479),  # 09
+        (287, 318),  # 10
+        (832, 863),  # 11
+        (   0,    1), # 12
+        (   0,    1), # 13
+        (   0,    1), # 14
+        (   0,    1)  # 15 (R)
     ]
-]
+)
+
+print('R_STRANDS\n  ', '\n  '.join([str(strand) for strand in R_STRANDS]))
+print('S_STRANDS\n  ', '\n  '.join([str(strand) for strand in S_STRANDS]))
 
 
 class DisplayAllOn(DisplayBase):
@@ -81,7 +101,7 @@ class DisplayAllOn(DisplayBase):
     def __init__(self):
         super(DisplayAllOn, self).__init__()
 
-    def update(self, time_delta, pixels, lepton_data):
+    def update(self, frame_time, pixels, lepton_data):
         pixels[:] = itertools.repeat((128, 128, 128), len(pixels))
 
 
@@ -90,58 +110,126 @@ class DisplayAllOff(DisplayBase):
     def __init__(self):
         super(DisplayAllOff, self).__init__()
 
-    def update(self, time_delta, pixels, lepton_data):
+    def update(self, frame_time, pixels, lepton_data):
         pass
+
+
+class DisplayRS(DisplayBase):
+
+    def __init__(self, initial_r_index, initial_s_index):
+        super(DisplayRS, self).__init__()
+
+        self.__r_index = initial_r_index
+        self.__s_index = initial_s_index
+
+    def set_r_index(self, r_index):
+        self.__r_index = r_index
+
+    def set_s_index(self, s_index):
+        self.__s_index = s_index
+
+    def update(self, frame_time, pixels, lepton_data):
+
+        r = R_STRANDS[self.__r_index]
+        pixels[r.slice] = itertools.repeat((123, 31, 173), r.length)
+        pixels[r.begin] = (244, 152, 66)
+        pixels[r.end] = (35, 234, 21)
+
+        s = S_STRANDS[self.__s_index]
+        pixels[s.slice] = itertools.repeat((123, 31, 173), s.length)
+        pixels[s.begin] = (244, 152, 66)
+        pixels[s.end] = (35, 234, 21)
 
 
 class DisplayChase(DisplayBase):
 
-    def __init__(self):
+    MIN_CPS = 1.0
+    MAX_CPS = 100.0
+
+    def __init__(self, initial_speed):
         super(DisplayChase, self).__init__()
+
         self.__s_index = 0
         self.__r_index = 0
+        self.__next_time = 0
+        self.__skipped = 0
 
-    def update(self, time_delta, pixels, lepton_data):
+        self.set_speed(initial_speed)
 
-        r = R[self.__r_index]
-        pixels[r.lower:r.upper] = itertools.repeat((123, 31, 173), r.length)
+    def set_speed(self, speed):
+        self.__delta_time = 1.0 / np.interp(speed, [0, 9], [self.MIN_CPS, self.MAX_CPS])
+        print('delta time', self.__delta_time)
 
-        s = S[self.__s_index]
-        pixels[s.lower:s.upper] = itertools.repeat((123, 31, 173), s.length)
+    def update(self, frame_time, pixels, lepton_data):
 
-        self.__r_index += 1
-        if self.__r_index == len(R):
-            self.__r_index = 0
+        if frame_time.current >= self.__next_time:
 
-        self.__s_index += 1
-        if self.__s_index == len(S):
-            self.__s_index = 0
+            self.__next_time = frame_time.current + self.__delta_time
+
+            self.__r_index += 1
+            if self.__r_index == len(R_STRANDS):
+                self.__r_index = 0
+
+            self.__s_index += 1
+            if self.__s_index == len(S_STRANDS):
+                self.__s_index = 0
+
+            print('skipped', self.__skipped)
+            self.__skipped = 0
+
+        else:
+
+            self.__skipped += 1
+
+        r = R_STRANDS[self.__r_index]
+        pixels[r.slice] = itertools.repeat((123, 31, 173), r.length)
+        pixels[r.begin] = (244, 152, 66)
+        pixels[r.end] = (35, 234, 21)
+
+        s = S_STRANDS[self.__s_index]
+        pixels[s.slice] = itertools.repeat((123, 31, 173), s.length)
+        pixels[s.begin] = (244, 152, 66)
+        pixels[s.end] = (35, 234, 21)
 
 
-class DisplayIndex(DisplayBase):
+class DisplayPixel(DisplayBase):
 
     def __init__(self, initial_index):
-        super(DisplayIndex, self).__init__()
+        super(DisplayPixel, self).__init__()
         self.__index = initial_index
 
     def set_index(self, index):
         self.__index = index
 
-    def update(self, time_delta, pixels, lepton_data):
+    def update(self, frame_time, pixels, lepton_data):
+        if self.__index > 0:
+            pixels[self.__index - 1] = (128, 0, 0)
         pixels[self.__index] = (255, 255, 255)
+        if self.__index < 1023:
+            pixels[self.__index + 1] = (0, 0, 128)
+
 
 
 class FrameTime(object):
 
     def __init__(self):
         self.__last_time = time.clock()
+        self.__last_delta = 0.0
         self.__last_display_time = self.__last_time
         self.__frame_count = 0
 
+    @property
+    def current(self):
+        return self.__last_time
+
+    @property
     def delta(self):
+        return self.__last_delta
+
+    def tick(self):
 
         current_time = time.clock()
-        delta_time = current_time - self.__last_time
+        self.__last_delta = current_time - self.__last_time
         self.__last_time = current_time
 
         self.__frame_count += 1
@@ -150,8 +238,6 @@ class FrameTime(object):
             print('update fps', self.__frame_count / display_delta_time)
             self.__frame_count = 0
             self.__last_display_time = current_time
-
-        return delta_time
 
 
 def lepton_process(connection, lepton_device):
@@ -209,7 +295,7 @@ class UpdateThread(QtCore.QThread):
 
         while True:
 
-            frame_time_delta = frame_time.delta()
+            frame_time.tick()
 
             try:
                 lepton_frame = self.__connection.recv()
@@ -221,7 +307,7 @@ class UpdateThread(QtCore.QThread):
             self.__produce_image(lepton_frame)
 
             pixels = [(0, 0, 0)] * self.NUM_PIXELS
-            self.__display.update(frame_time_delta, pixels, lepton_frame)
+            self.__display.update(frame_time, pixels, lepton_frame)
             self.__opc_client.put_pixels(pixels)
 
         print('update thread exiting')
@@ -239,24 +325,28 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
 
         self.setupUi(self)
 
-        # spin boxes
-        self.indexSpinBox.valueChanged.connect(self.__index_changed)
-        self.indexSpinBox.setMinimum(0)
-        self.indexSpinBox.setMaximum(UpdateThread.NUM_PIXELS - 1)
-        self.indexSpinBox.setWrapping(True)
-        self.stepSpinBox.valueChanged.connect(lambda value: self.indexSpinBox.setSingleStep(value))
+        # pixel index
+        self.pixelIndexSpinBox.valueChanged.connect(self.__pixel_index_changed)
+        self.pixelIndexStepSpinBox.valueChanged.connect(lambda value: self.pixelIndexSpinBox.setSingleStep(value))
+
+        # s/r index
+        self.sSpinBox.valueChanged.connect(self.__s_index_changed)
+        self.rSpinBox.valueChanged.connect(self.__r_index_changed)
+
+        # chase speed
+        self.chaseSpeedSpinBox.valueChanged.connect(self.__chase_speed_changed)
 
         # buttons
         self.performFFCButton.clicked.connect(self.__perform_ffc)
         self.allOnPushButton.clicked.connect(self.__all_on_clicked)
         self.allOffPushButton.clicked.connect(self.__all_off_clicked)
-        self.chasePushButton.clicked.connect(self.__chase_clicked)
 
         # displays
         self.__display_all_off = DisplayAllOff()
         self.__display_all_on = DisplayAllOn()
-        self.__display_chase = DisplayChase()
-        self.__display_index = DisplayIndex(self.indexSpinBox.value())
+        self.__display_chase = DisplayChase(self.chaseSpeedSpinBox.value())
+        self.__display_pixel = DisplayPixel(self.pixelIndexSpinBox.value())
+        self.__display_r_s = DisplayRS(self.rSpinBox.value(), self.sSpinBox.value())
 
         # update thread
         self.__update_thread = UpdateThread(self, self.__display_all_off)
@@ -279,18 +369,27 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
         pixmap = pixmap.scaled(self.imageLabel.width(), self.imageLabel.height(), QtCore.Qt.KeepAspectRatio)
         self.imageLabel.setPixmap(pixmap)
 
-    def __index_changed(self, index):
-        self.__display_index.set_index(index)
-        self.__update_thread.set_display(self.__display_index)
+    def __pixel_index_changed(self, index):
+        self.__display_pixel.set_index(index)
+        self.__update_thread.set_display(self.__display_pixel)
+
+    def __r_index_changed(self, index):
+        self.__display_r_s.set_r_index(index)
+        self.__update_thread.set_display(self.__display_r_s)
+
+    def __s_index_changed(self, index):
+        self.__display_r_s.set_s_index(index)
+        self.__update_thread.set_display(self.__display_r_s)
+
+    def __chase_speed_changed(self, speed):
+        self.__display_chase.set_speed(speed)
+        self.__update_thread.set_display(self.__display_chase)
 
     def __all_on_clicked(self):
         self.__update_thread.set_display(self.__display_all_on)
 
     def __all_off_clicked(self):
         self.__update_thread.set_display(self.__display_all_off)
-
-    def __chase_clicked(self):
-        self.__update_thread.set_display(self.__display_chase)
 
 
 def main():

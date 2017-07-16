@@ -34,7 +34,7 @@
         </widget>
        </item>
        <item>
-        <widget class="QSpinBox" name="stepSpinBox">
+        <widget class="QSpinBox" name="pixelIndexStepSpinBox">
          <property name="minimum">
           <number>1</number>
          </property>
@@ -44,7 +44,14 @@
         </widget>
        </item>
        <item>
-        <widget class="QSpinBox" name="indexSpinBox"/>
+        <widget class="QSpinBox" name="pixelIndexSpinBox">
+         <property name="wrapping">
+          <bool>true</bool>
+         </property>
+         <property name="maximum">
+          <number>1023</number>
+         </property>
+        </widget>
        </item>
        <item>
         <widget class="QPushButton" name="allOnPushButton">
@@ -61,9 +68,32 @@
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="chasePushButton">
-         <property name="text">
-          <string>Chase</string>
+        <widget class="QSpinBox" name="chaseSpeedSpinBox">
+         <property name="maximum">
+          <number>9</number>
+         </property>
+         <property name="value">
+          <number>5</number>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QSpinBox" name="sSpinBox">
+         <property name="wrapping">
+          <bool>true</bool>
+         </property>
+         <property name="maximum">
+          <number>8</number>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QSpinBox" name="rSpinBox">
+         <property name="wrapping">
+          <bool>true</bool>
+         </property>
+         <property name="maximum">
+          <number>13</number>
          </property>
         </widget>
        </item>
