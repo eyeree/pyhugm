@@ -4,6 +4,7 @@ from __future__ import division
 # python
 import collections
 import itertools
+import math
 import multiprocessing
 import subprocess
 import sys
@@ -32,7 +33,7 @@ class DisplayBase(object):
         pass
 
 
-Strand = collections.namedtuple('Strand', ['begin', 'end', 'length', 'slice'])
+Strand = collections.namedtuple('Strand', ['index', 'begin', 'end', 'length', 'slice'])
 
 
 def strands(end_point_list):
@@ -41,6 +42,7 @@ def strands(end_point_list):
         if end_points[0] < end_points[1]:
             result.append(
                 Strand(
+                    len(result),
                     end_points[0], end_points[1],
                     (end_points[1] - end_points[0]) + 1,
                     slice(end_points[0], end_points[1] + 1, 1)
@@ -49,6 +51,7 @@ def strands(end_point_list):
         else:
             result.append(
                 Strand(
+                    len(result),
                     end_points[0], end_points[1],
                     (end_points[0] - end_points[1]) + 1,
                     slice(end_points[0], end_points[1] - 1, -1)
@@ -59,36 +62,36 @@ def strands(end_point_list):
 
 S_STRANDS = strands(
     [
-        (192, 210),    # 0
-        (229, 211),    # 1
-        (230, 246),    # 2
-        (320, 336),    # 3
-        (351, 337),    # 4
-        (352, 366),    # 5
-        (256, 268),    # 6
-        (279, 269),    # 7
-        (280, 286)     # 8
+        (320, 338),    # 0
+        (722, 704),    # 1
+        (256, 272),    # 2
+        (656, 640),    # 3
+        (287, 273),    # 4
+        (657, 671),    # 5
+        (723, 735),    # 6
+        (349, 339),    # 7
+        (192, 198)     # 8
     ]
 )
 
 R_STRANDS = strands(
     [
-        (   0,    1), #  0 (L)
-        (   0,    1), #  1
-        (   0,    1), #  2
-        (   0,    1), #  3
-        (   0,    1), #  4
-        (   0,    1), #  5
-        (   0,    1), #  6
-        (   0,    1), #  7
-        (384, 415),  # 08
-        (448, 479),  # 09
-        (287, 318),  # 10
-        (832, 863),  # 11
-        (   0,    1), # 12
-        (   0,    1), # 13
-        (   0,    1), # 14
-        (   0,    1)  # 15 (R)
+        (350, 381),  # 0 (L)
+        (64, 95),    # 1
+        (288, 319),  # 2
+        (128, 159),  # 3
+        (384, 415),  # 4
+        (0, 31),     # 5
+        (512, 543),  # 6
+        (768, 799),  # 7
+        (896, 927),  # 8
+        (448, 479),  # 9
+        (199, 230),  # 10
+        (576, 607),  # 11
+        (736, 767),  # 12
+        (960, 991),  # 13
+        (672, 703),  # 14
+        (832, 863)   # 15 (R)
     ]
 )
 
@@ -208,6 +211,92 @@ class DisplayPixel(DisplayBase):
         if self.__index < 1023:
             pixels[self.__index + 1] = (0, 0, 128)
 
+
+def interp_rgb(x, indexes, colors):
+    r = np.interp(x, indexes, [c[0] for c in colors])
+    g = np.interp(x, indexes, [c[1] for c in colors])
+    b = np.interp(x, indexes, [c[2] for c in colors])
+    return (r, g, b)
+
+
+def iter_rgb(count, colors):
+    indexes = np.linspace(0, count - 1, len(colors))
+    for x in range(0, count):
+        yield interp_rgb(x, indexes, colors)
+
+
+MAX_S_HALF = 9
+
+
+def iter_rgb_s_dist(s, colors):
+
+    indexes = np.linspace(-MAX_S_HALF, MAX_S_HALF, len(colors))
+
+    y = s.index
+
+    half = int((s.length - 1) / 2)
+
+    for x in range(-half, half + 1):
+        dist = math.hypot(x, y)
+        yield interp_rgb(dist, indexes, colors)
+
+
+def gamma_adjust_rgb(rgb, adjustment):
+    r = int(rgb[0] * adjustment)
+    g = int(rgb[1] * adjustment)
+    b = int(rgb[2] * adjustment)
+    return (r, g, b)
+
+
+class DisplaySun(DisplayBase):
+
+    S_CENTER_COLOR = (255, 223, 147)
+    S_HALF_COLOR = (252, 217, 133)
+    S_EDGE_COLOR = (255, 180, 0)
+    S_COLORS = [S_CENTER_COLOR, S_HALF_COLOR, S_HALF_COLOR, S_HALF_COLOR, S_EDGE_COLOR]
+
+    R_START_COLOR = (255, 180, 0)
+    R_END_COLOR = (0, 0, 0)
+    R_COLORS = [R_START_COLOR, R_END_COLOR]
+
+    ALIAS_GAMMA_ADJUSTMENT = 0.5
+
+    def __init__(self):
+        super(DisplaySun, self).__init__()
+        self.__frame_number = 0
+        self.__pixels = [(0, 0, 0)] * 1024
+
+        for r in R_STRANDS:
+            self.__pixels[r.slice] = iter_rgb(r.length, self.R_COLORS)
+
+        for s in S_STRANDS:
+            self.__pixels[s.slice] = iter_rgb_s_dist(s, self.S_COLORS)
+
+        for i in [1, 3, 5]:
+            s = S_STRANDS[i]
+            self.__pixels[s.begin] = gamma_adjust_rgb(self.__pixels[s.begin], self.ALIAS_GAMMA_ADJUSTMENT)
+            self.__pixels[s.end] = gamma_adjust_rgb(self.__pixels[s.end], self.ALIAS_GAMMA_ADJUSTMENT)
+
+    def update(self, frame_time, pixels, lepton_data):
+        pixels[:] = self.__pixels
+
+        for r in R_STRANDS:
+            for i in range(int(self.__frame_number / 4), r.length, int(r.length / 4)):
+
+                if i > 0:
+                    p = r.begin + (i - 1)
+                    pixels[p] = gamma_adjust_rgb(pixels[p], 0.97)
+
+                p = r.begin + i
+                pixels[p] = gamma_adjust_rgb(pixels[p], 0.93)
+
+                if i < 31:
+                    p = r.begin + (i + 1)
+                    pixels[p] = gamma_adjust_rgb(pixels[p], 0.97)
+
+        self.__frame_number += 1
+        if self.__frame_number == 32:
+            self.__frame_number = 0
 
 
 class FrameTime(object):
@@ -347,9 +436,10 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
         self.__display_chase = DisplayChase(self.chaseSpeedSpinBox.value())
         self.__display_pixel = DisplayPixel(self.pixelIndexSpinBox.value())
         self.__display_r_s = DisplayRS(self.rSpinBox.value(), self.sSpinBox.value())
+        self.__display_sun = DisplaySun()
 
         # update thread
-        self.__update_thread = UpdateThread(self, self.__display_all_off)
+        self.__update_thread = UpdateThread(self, self.__display_sun)
         self.__update_thread.image_captured.connect(self.__display_image)
         self.__update_thread.start()
 
