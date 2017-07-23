@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'hugm.ui'
 #
-# Created: Sun Jul 23 00:02:36 2017
+# Created: Sun Jul 23 05:42:07 2017
 #      by: PyQt4 UI code generator 4.11.2
 #
 # WARNING! All changes made in this file will be lost!
@@ -26,11 +26,21 @@ except AttributeError:
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName(_fromUtf8("MainWindow"))
-        MainWindow.resize(749, 599)
+        MainWindow.resize(1000, 700)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(MainWindow.sizePolicy().hasHeightForWidth())
+        MainWindow.setSizePolicy(sizePolicy)
         self.centralwidget = QtGui.QWidget(MainWindow)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.centralwidget.sizePolicy().hasHeightForWidth())
+        self.centralwidget.setSizePolicy(sizePolicy)
         self.centralwidget.setObjectName(_fromUtf8("centralwidget"))
         self.layoutWidget = QtGui.QWidget(self.centralwidget)
-        self.layoutWidget.setGeometry(QtCore.QRect(10, 10, 731, 581))
+        self.layoutWidget.setGeometry(QtCore.QRect(10, 10, 981, 681))
         self.layoutWidget.setObjectName(_fromUtf8("layoutWidget"))
         self.verticalLayout = QtGui.QVBoxLayout(self.layoutWidget)
         self.verticalLayout.setMargin(0)
@@ -61,16 +71,31 @@ class Ui_MainWindow(object):
         self.chaseSpeedSpinBox.setProperty("value", 5)
         self.chaseSpeedSpinBox.setObjectName(_fromUtf8("chaseSpeedSpinBox"))
         self.buttonRowLayout.addWidget(self.chaseSpeedSpinBox)
-        self.sSpinBox = QtGui.QSpinBox(self.layoutWidget)
-        self.sSpinBox.setWrapping(True)
-        self.sSpinBox.setMaximum(9)
-        self.sSpinBox.setObjectName(_fromUtf8("sSpinBox"))
-        self.buttonRowLayout.addWidget(self.sSpinBox)
         self.rSpinBox = QtGui.QSpinBox(self.layoutWidget)
         self.rSpinBox.setWrapping(True)
         self.rSpinBox.setMaximum(15)
         self.rSpinBox.setObjectName(_fromUtf8("rSpinBox"))
         self.buttonRowLayout.addWidget(self.rSpinBox)
+        self.sSpinBox = QtGui.QSpinBox(self.layoutWidget)
+        self.sSpinBox.setWrapping(True)
+        self.sSpinBox.setMaximum(9)
+        self.sSpinBox.setObjectName(_fromUtf8("sSpinBox"))
+        self.buttonRowLayout.addWidget(self.sSpinBox)
+        self.redSpinBox = QtGui.QSpinBox(self.layoutWidget)
+        self.redSpinBox.setMinimum(-255)
+        self.redSpinBox.setMaximum(255)
+        self.redSpinBox.setObjectName(_fromUtf8("redSpinBox"))
+        self.buttonRowLayout.addWidget(self.redSpinBox)
+        self.greenSpinBox = QtGui.QSpinBox(self.layoutWidget)
+        self.greenSpinBox.setMinimum(-255)
+        self.greenSpinBox.setMaximum(255)
+        self.greenSpinBox.setObjectName(_fromUtf8("greenSpinBox"))
+        self.buttonRowLayout.addWidget(self.greenSpinBox)
+        self.blueSpinBox = QtGui.QSpinBox(self.layoutWidget)
+        self.blueSpinBox.setMinimum(-255)
+        self.blueSpinBox.setMaximum(255)
+        self.blueSpinBox.setObjectName(_fromUtf8("blueSpinBox"))
+        self.buttonRowLayout.addWidget(self.blueSpinBox)
         spacerItem = QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)
         self.buttonRowLayout.addItem(spacerItem)
         self.verticalLayout.addLayout(self.buttonRowLayout)
@@ -108,7 +133,7 @@ class Ui_MainWindow(object):
         self.allOnPushButton.setText(_translate("MainWindow", "All On", None))
         self.allOffPushButton.setText(_translate("MainWindow", "All Off", None))
         self.chaseSpeedSpinBox.setToolTip(_translate("MainWindow", "chase speed", None))
-        self.sSpinBox.setToolTip(_translate("MainWindow", "s index", None))
         self.rSpinBox.setToolTip(_translate("MainWindow", "r index", None))
+        self.sSpinBox.setToolTip(_translate("MainWindow", "s index", None))
         self.imageLabel.setText(_translate("MainWindow", "TextLabel", None))
 

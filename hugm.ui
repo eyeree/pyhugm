@@ -6,24 +6,36 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>749</width>
-    <height>599</height>
+    <width>1000</width>
+    <height>700</height>
    </rect>
+  </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
   </property>
   <property name="windowTitle">
    <string>MainWindow</string>
   </property>
   <widget class="QWidget" name="centralwidget">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
    <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
       <x>10</x>
       <y>10</y>
-      <width>731</width>
-      <height>581</height>
+      <width>981</width>
+      <height>681</height>
      </rect>
     </property>
-    <layout class="QVBoxLayout" name="verticalLayout">
+    <layout class="QVBoxLayout" name="verticalLayout" stretch="0,0">
      <item>
       <layout class="QHBoxLayout" name="buttonRowLayout">
        <item>
@@ -87,6 +99,19 @@
         </widget>
        </item>
        <item>
+        <widget class="QSpinBox" name="rSpinBox">
+         <property name="toolTip">
+          <string>r index</string>
+         </property>
+         <property name="wrapping">
+          <bool>true</bool>
+         </property>
+         <property name="maximum">
+          <number>15</number>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QSpinBox" name="sSpinBox">
          <property name="toolTip">
           <string>s index</string>
@@ -100,15 +125,32 @@
         </widget>
        </item>
        <item>
-        <widget class="QSpinBox" name="rSpinBox">
-         <property name="toolTip">
-          <string>r index</string>
-         </property>
-         <property name="wrapping">
-          <bool>true</bool>
+        <widget class="QSpinBox" name="redSpinBox">
+         <property name="minimum">
+          <number>-255</number>
          </property>
          <property name="maximum">
-          <number>15</number>
+          <number>255</number>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QSpinBox" name="greenSpinBox">
+         <property name="minimum">
+          <number>-255</number>
+         </property>
+         <property name="maximum">
+          <number>255</number>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QSpinBox" name="blueSpinBox">
+         <property name="minimum">
+          <number>-255</number>
+         </property>
+         <property name="maximum">
+          <number>255</number>
          </property>
         </widget>
        </item>

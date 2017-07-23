@@ -3,7 +3,6 @@ from __future__ import division
 
 # python
 import collections
-import itertools
 import math
 import multiprocessing
 import subprocess
@@ -99,6 +98,38 @@ R_STRANDS = strands(
 print('R_STRANDS\n ', '\n  '.join([str(strand) for strand in R_STRANDS]))
 print('S_STRANDS\n ', '\n  '.join([str(strand) for strand in S_STRANDS]))
 
+S_COLOR_ADJUST = [
+    (0, 0, 0),  # 0
+    (0, 0, 0),  # 1
+    (0, 0, 0),  # 2
+    (0, 0, 0),  # 3
+    (0, 0, 0),  # 4
+    (0, 0, 0),  # 5
+    (0, 0, 0),  # 6
+    (0, 0, 0),  # 7
+    (0, 0, 0),  # 8
+    (0, 0, 0)   # 9
+]
+
+R_COLOR_ADJUST = [
+    (0, 0, 0),  # 0
+    (0, 0, 0),  # 1
+    (0, 0, 0),  # 2
+    (0, 0, 0),  # 3
+    (0, 0, 0),  # 4
+    (0, 0, 0),  # 5
+    (0, 0, 0),  # 6
+    (0, 0, 0),  # 7
+    (0, 0, 0),  # 8
+    (0, 0, 0),  # 9
+    (0, 0, 0),  # 10
+    (0, 0, 0),  # 11
+    (0, 0, 0),  # 12
+    (0, 0, 0),  # 13
+    (0, 0, 0),  # 14
+    (0, 0, 0)   # 15
+]
+
 
 class DisplayAllOn(DisplayBase):
 
@@ -106,7 +137,7 @@ class DisplayAllOn(DisplayBase):
         super(DisplayAllOn, self).__init__()
 
     def update(self, frame_time, pixels, lepton_data):
-        pixels[:] = itertools.repeat((128, 128, 128), len(pixels))
+        pixels.fill(128)
 
 
 class DisplayAllOff(DisplayBase):
@@ -122,7 +153,6 @@ class DisplayRS(DisplayBase):
 
     def __init__(self, initial_r_index, initial_s_index):
         super(DisplayRS, self).__init__()
-
         self.__r_index = initial_r_index
         self.__s_index = initial_s_index
 
@@ -135,65 +165,14 @@ class DisplayRS(DisplayBase):
     def update(self, frame_time, pixels, lepton_data):
 
         r = R_STRANDS[self.__r_index]
-        pixels[r.slice] = itertools.repeat((123, 31, 173), r.length)
-        pixels[r.begin] = (244, 152, 66)
-        pixels[r.end] = (35, 234, 21)
+        pixels[r.slice] = [123, 31, 173]
+        pixels[r.begin] = [244, 152, 66]
+        pixels[r.end] = [35, 234, 21]
 
         s = S_STRANDS[self.__s_index]
-        pixels[s.slice] = itertools.repeat((123, 31, 173), s.length)
-        pixels[s.begin] = (244, 152, 66)
-        pixels[s.end] = (35, 234, 21)
-
-
-class DisplayChase(DisplayBase):
-
-    MIN_CPS = 1.0
-    MAX_CPS = 100.0
-
-    def __init__(self, initial_speed):
-        super(DisplayChase, self).__init__()
-
-        self.__s_index = 0
-        self.__r_index = 0
-        self.__next_time = 0
-        self.__skipped = 0
-
-        self.set_speed(initial_speed)
-
-    def set_speed(self, speed):
-        self.__delta_time = 1.0 / np.interp(speed, [0, 9], [self.MIN_CPS, self.MAX_CPS])
-        print('delta time', self.__delta_time)
-
-    def update(self, frame_time, pixels, lepton_data):
-
-        if frame_time.current >= self.__next_time:
-
-            self.__next_time = frame_time.current + self.__delta_time
-
-            self.__r_index += 1
-            if self.__r_index == len(R_STRANDS):
-                self.__r_index = 0
-
-            self.__s_index += 1
-            if self.__s_index == len(S_STRANDS):
-                self.__s_index = 0
-
-            print('skipped', self.__skipped)
-            self.__skipped = 0
-
-        else:
-
-            self.__skipped += 1
-
-        r = R_STRANDS[self.__r_index]
-        pixels[r.slice] = itertools.repeat((123, 31, 173), r.length)
-        pixels[r.begin] = (244, 152, 66)
-        pixels[r.end] = (35, 234, 21)
-
-        s = S_STRANDS[self.__s_index]
-        pixels[s.slice] = itertools.repeat((123, 31, 173), s.length)
-        pixels[s.begin] = (244, 152, 66)
-        pixels[s.end] = (35, 234, 21)
+        pixels[s.slice] = [123, 31, 173]
+        pixels[s.begin] = [244, 152, 66]
+        pixels[s.end] = [35, 234, 21]
 
 
 class DisplayPixel(DisplayBase):
@@ -207,23 +186,22 @@ class DisplayPixel(DisplayBase):
 
     def update(self, frame_time, pixels, lepton_data):
         if self.__index > 0:
-            pixels[self.__index - 1] = (128, 0, 0)
-        pixels[self.__index] = (255, 255, 255)
+            pixels[self.__index - 1] = [128, 0, 0]
+        pixels[self.__index] = [255, 255, 255]
         if self.__index < 1023:
-            pixels[self.__index + 1] = (0, 0, 128)
+            pixels[self.__index + 1] = [0, 0, 128]
 
 
 def interp_rgb(x, indexes, colors):
     r = np.interp(x, indexes, [c[0] for c in colors])
     g = np.interp(x, indexes, [c[1] for c in colors])
     b = np.interp(x, indexes, [c[2] for c in colors])
-    return (r, g, b)
+    return [r, g, b]
 
 
 def iter_rgb(count, colors):
     indexes = np.linspace(0, count - 1, len(colors))
-    for x in range(0, count):
-        yield interp_rgb(x, indexes, colors)
+    return [interp_rgb(x, indexes, colors) for x in range(0, count)]
 
 
 MAX_S_HALF = 11
@@ -237,27 +215,26 @@ def iter_rgb_s_dist(s, colors):
 
     half = int((s.length - 1) / 2)
 
-    for x in range(-half, half + 1):
-        dist = math.hypot(x, y)
-        yield interp_rgb(dist, indexes, colors)
+    return [interp_rgb(math.hypot(x, y), indexes, colors) for x in range(-half, half + 1)]
 
 
 def gamma_adjust_rgb(rgb, adjustment):
-    r = int(rgb[0] * adjustment)
-    g = int(rgb[1] * adjustment)
-    b = int(rgb[2] * adjustment)
-    return (r, g, b)
+    return rgb * adjustment
+    #r = int(rgb[0] * adjustment)
+    #g = int(rgb[1] * adjustment)
+    #b = int(rgb[2] * adjustment)
+    #return [r, g, b]
 
 
 class DisplaySun(DisplayBase):
 
-    S_CENTER_COLOR = (255, 223, 147)
-    S_HALF_COLOR = (252, 217, 133)
-    S_EDGE_COLOR = (255, 180, 0)
+    S_CENTER_COLOR = [255, 223, 147]
+    S_HALF_COLOR = [252, 217, 133]
+    S_EDGE_COLOR = [255, 180, 0]
     S_COLORS = [S_CENTER_COLOR, S_HALF_COLOR, S_HALF_COLOR, S_HALF_COLOR, S_EDGE_COLOR]
 
-    R_START_COLOR = (255, 180, 0)
-    R_END_COLOR = (0, 0, 0)
+    R_START_COLOR = [255, 180, 0]
+    R_END_COLOR = [0, 0, 0]
     R_COLORS = [R_START_COLOR, R_END_COLOR]
 
     ALIAS_GAMMA_ADJUSTMENT = 0.5
@@ -265,7 +242,7 @@ class DisplaySun(DisplayBase):
     def __init__(self, initial_speed):
         super(DisplaySun, self).__init__()
         self.__frame_number = 0
-        self.__pixels = [(0, 0, 0)] * 1024
+        self.__pixels = np.zeros([UpdateThread.NUM_PIXELS, 3], dtype=np.uint8)
         self.__speed = initial_speed
 
         for r in R_STRANDS:
@@ -289,13 +266,13 @@ class DisplaySun(DisplayBase):
             for i in range(int(self.__frame_number / 4), r.length, int(r.length / 4)):
 
                 p = r.begin + (i - 1) if i > 0 else r.end
-                pixels[p] = gamma_adjust_rgb(pixels[p], 0.87)
+                pixels[p] *= 0.87
 
                 p = r.begin + i
-                pixels[p] = gamma_adjust_rgb(pixels[p], 0.83)
+                pixels[p] *= 0.83
 
                 p = r.begin + (i + 1) if i < 31 else r.begin
-                pixels[p] = gamma_adjust_rgb(pixels[p], 0.87)
+                pixels[p] *= 0.87
 
         self.__frame_number += self.__speed
         if self.__frame_number >= 32:
@@ -304,17 +281,13 @@ class DisplaySun(DisplayBase):
 
 class FrameTime(object):
 
-    MAX_FPS = 60
-    MIN_DELTA = 1.0 / MAX_FPS
+    SLEEP_TIME = 1.0 / 61.0
 
     def __init__(self):
-        self.__last_time = time.clock()
+        self.__last_time = time.time()
         self.__last_delta = 0.0
         self.__last_display_time = self.__last_time
         self.__frame_count = 0
-        self.__total_sleep_time = 0
-        print('MAX_FPS', self.MAX_FPS)
-        print('MIN_DELTA', self.MIN_DELTA)
 
     @property
     def current(self):
@@ -326,22 +299,17 @@ class FrameTime(object):
 
     def tick(self):
 
-        current_time = time.clock()
-        delta = current_time - self.__last_time
-        sleep_time = self.MIN_DELTA - delta
-        if sleep_time < 0:
-            sleep_time = 0
-        self.__total_sleep_time += sleep_time
-        time.sleep(sleep_time)
-        current_time = time.clock()
+        time.sleep(max(self.SLEEP_TIME - (time.time() - self.__last_time), 0.0))
+
+        current_time = time.time()
 
         self.__last_delta = current_time - self.__last_time
         self.__last_time = current_time
 
         self.__frame_count += 1
         display_delta_time = current_time - self.__last_display_time
-        if display_delta_time >= 10:
-            print('update fps', self.__frame_count / display_delta_time, self.__total_sleep_time / self.__frame_count)
+        if display_delta_time >= 5:
+            print('update fps', self.__frame_count / display_delta_time)
             self.__frame_count = 0
             self.__last_display_time = current_time
 
@@ -399,6 +367,7 @@ class UpdateThread(QtCore.QThread):
 
     NUM_PIXELS = 1024
     OPC_ADDRESS = 'localhost:7890'
+    OPC_HEADER_SIZE = 4
 
     def __init__(self, parent, initial_display):
         QtCore.QThread.__init__(self, parent)
@@ -424,12 +393,24 @@ class UpdateThread(QtCore.QThread):
 
         print('update thread running')
 
+        blen = self.NUM_PIXELS * 3
+        len_hi = int(blen / 256)
+        len_lo = blen % 256
+
+        opc_buffer = np.empty([(self.NUM_PIXELS * 3) + self.OPC_HEADER_SIZE], dtype=np.uint8)
+        opc_buffer[0] = 0                               # channel
+        opc_buffer[1] = 0                               # command = set color
+        opc_buffer[2] = len_hi  # len hi byte
+        opc_buffer[3] = len_lo  # len lo byte
+
+        pixels = opc_buffer[self.OPC_HEADER_SIZE:].reshape([self.NUM_PIXELS, 3])
+
         frame_time = FrameTime()
         while not self.__exiting:
             frame_time.tick()
-            pixels = [(0, 0, 0)] * self.NUM_PIXELS
+            pixels.fill(0)
             self.__display.update(frame_time, pixels, self.__lepton_frame)
-            self.__opc_client.put_pixels(pixels)
+            self.__opc_client.put_message(opc_buffer.tostring())
 
         print('update thread exited')
 
@@ -463,7 +444,6 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
         # displays
         self.__display_all_off = DisplayAllOff()
         self.__display_all_on = DisplayAllOn()
-        self.__display_chase = DisplayChase(self.chaseSpeedSpinBox.value())
         self.__display_pixel = DisplayPixel(self.pixelIndexSpinBox.value())
         self.__display_r_s = DisplayRS(self.rSpinBox.value(), self.sSpinBox.value())
         self.__display_sun = DisplaySun(self.chaseSpeedSpinBox.value())
@@ -476,6 +456,13 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
         self.__lepton_thread = LeptonThread(self)
         self.__lepton_thread.lepton_frame_captured.connect(self.__lepton_frame_captured)
         self.__lepton_thread.start()
+
+        # rgb / color adjust
+        self.redSpinBox.valueChanged.connect(self.__color_changed)
+        self.greenSpinBox.valueChanged.connect(self.__color_changed)
+        self.blueSpinBox.valueChanged.connect(self.__color_changed)
+        self.__color_adjust_s_index = None
+        self.__color_adjust_r_index = None
 
         print('main window started')
 
@@ -508,12 +495,34 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
         self.__update_thread.set_display(self.__display_pixel)
 
     def __r_index_changed(self, index):
-        self.__display_r_s.set_r_index(index)
-        self.__update_thread.set_display(self.__display_r_s)
+        #self.__display_r_s.set_r_index(index)
+        #self.__update_thread.set_display(self.__display_r_s)
+        self.__set_color_adjust_r_index(index)
 
     def __s_index_changed(self, index):
-        self.__display_r_s.set_s_index(index)
-        self.__update_thread.set_display(self.__display_r_s)
+        #self.__display_r_s.set_s_index(index)
+        #self.__update_thread.set_display(self.__display_r_s)
+        self.__set_color_adjust_s_index(index)
+
+    def set_color_adjust_s_index(self, index):
+        self.__color_adjust_r_index = None
+        self.__color_adjust_s_index = index
+        self.__show_color(S_COLOR_ADJUST[self.__color_adjust_s_index])
+
+    def set_color_adjust_r_index(self, index):
+        self.__color_adjust_s_index = None
+        self.__color_adjust_r_index = index
+        self.__show_color(R_COLOR_ADJUST[self.__color_adjust_r_index])
+
+    def __show_color(self, rgb):
+        self.redSpinBox.setValue(R_COLOR_ADJUST)
+
+    def __color_changed(self, ignored):
+        rgb = (self.redSpinBox.value, self.greenSpinBox.value, self.blueSpinBox.value)
+        if self.__color_adjust_r_index:
+            R_COLOR_ADJUST[self.__color_adjust_r_index] = rgb
+        else:
+            S_COLOR_ADJUST[self.__color_adjust_r_index] = rgb
 
     def __chase_speed_changed(self, speed):
         self.__display_sun.set_speed(speed)
