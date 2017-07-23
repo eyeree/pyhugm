@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'hugm.ui'
 #
-# Created: Sat Jul 15 18:53:01 2017
+# Created: Sun Jul 23 00:02:36 2017
 #      by: PyQt4 UI code generator 4.11.2
 #
 # WARNING! All changes made in this file will be lost!
@@ -63,12 +63,12 @@ class Ui_MainWindow(object):
         self.buttonRowLayout.addWidget(self.chaseSpeedSpinBox)
         self.sSpinBox = QtGui.QSpinBox(self.layoutWidget)
         self.sSpinBox.setWrapping(True)
-        self.sSpinBox.setMaximum(8)
+        self.sSpinBox.setMaximum(9)
         self.sSpinBox.setObjectName(_fromUtf8("sSpinBox"))
         self.buttonRowLayout.addWidget(self.sSpinBox)
         self.rSpinBox = QtGui.QSpinBox(self.layoutWidget)
         self.rSpinBox.setWrapping(True)
-        self.rSpinBox.setMaximum(13)
+        self.rSpinBox.setMaximum(15)
         self.rSpinBox.setObjectName(_fromUtf8("rSpinBox"))
         self.buttonRowLayout.addWidget(self.rSpinBox)
         spacerItem = QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)
@@ -103,7 +103,12 @@ class Ui_MainWindow(object):
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow", None))
         self.performFFCButton.setText(_translate("MainWindow", "FFC", None))
+        self.pixelIndexStepSpinBox.setToolTip(_translate("MainWindow", "pixel index increment", None))
+        self.pixelIndexSpinBox.setToolTip(_translate("MainWindow", "pixel index", None))
         self.allOnPushButton.setText(_translate("MainWindow", "All On", None))
         self.allOffPushButton.setText(_translate("MainWindow", "All Off", None))
+        self.chaseSpeedSpinBox.setToolTip(_translate("MainWindow", "chase speed", None))
+        self.sSpinBox.setToolTip(_translate("MainWindow", "s index", None))
+        self.rSpinBox.setToolTip(_translate("MainWindow", "r index", None))
         self.imageLabel.setText(_translate("MainWindow", "TextLabel", None))
 

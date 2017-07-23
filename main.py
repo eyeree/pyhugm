@@ -62,41 +62,42 @@ def strands(end_point_list):
 
 S_STRANDS = strands(
     [
-        (320, 338),    # 0
-        (722, 704),    # 1
-        (256, 272),    # 2
-        (656, 640),    # 3
-        (287, 273),    # 4
-        (657, 671),    # 5
-        (723, 735),    # 6
-        (349, 339),    # 7
-        (192, 198)     # 8
+        (384, 406),    # 0
+        (192, 214),    # 1
+        (256, 276),    # 2
+        (724, 704),    # 3
+        (658, 640),    # 4
+        (448, 464),    # 5
+        (479, 465),    # 6
+        (659, 671),    # 7
+        (223, 215),    # 8
+        (725, 729)     # 9
     ]
 )
 
 R_STRANDS = strands(
     [
-        (350, 381),  # 0 (L)
+        (128, 159),  # 0 (L)
         (64, 95),    # 1
-        (288, 319),  # 2
-        (128, 159),  # 3
-        (384, 415),  # 4
-        (0, 31),     # 5
-        (512, 543),  # 6
-        (768, 799),  # 7
-        (896, 927),  # 8
-        (448, 479),  # 9
-        (199, 230),  # 10
-        (576, 607),  # 11
-        (736, 767),  # 12
-        (960, 991),  # 13
-        (672, 703),  # 14
-        (832, 863)   # 15 (R)
+        (320, 351),  # 2
+        (960, 991),  # 3
+        (0, 31),     # 4
+        (224, 255),  # 5
+        (576, 607),  # 6
+        (480, 511),  # 7
+        (768, 799),  # 8
+        (896, 927),  # 9
+        (832, 863),  # 10
+        (512, 543),  # 11
+        (730, 761),  # 12
+        (672, 703),  # 13
+        (277, 308),  # 14
+        (407, 438)   # 15 (R)
     ]
 )
 
-print('R_STRANDS\n  ', '\n  '.join([str(strand) for strand in R_STRANDS]))
-print('S_STRANDS\n  ', '\n  '.join([str(strand) for strand in S_STRANDS]))
+print('R_STRANDS\n ', '\n  '.join([str(strand) for strand in R_STRANDS]))
+print('S_STRANDS\n ', '\n  '.join([str(strand) for strand in S_STRANDS]))
 
 
 class DisplayAllOn(DisplayBase):
@@ -225,14 +226,14 @@ def iter_rgb(count, colors):
         yield interp_rgb(x, indexes, colors)
 
 
-MAX_S_HALF = 9
+MAX_S_HALF = 11
 
 
 def iter_rgb_s_dist(s, colors):
 
     indexes = np.linspace(-MAX_S_HALF, MAX_S_HALF, len(colors))
 
-    y = s.index
+    y = s.index + 2  # offset for rows one less than MAX_S_HALF
 
     half = int((s.length - 1) / 2)
 
@@ -261,10 +262,11 @@ class DisplaySun(DisplayBase):
 
     ALIAS_GAMMA_ADJUSTMENT = 0.5
 
-    def __init__(self):
+    def __init__(self, initial_speed):
         super(DisplaySun, self).__init__()
         self.__frame_number = 0
         self.__pixels = [(0, 0, 0)] * 1024
+        self.__speed = initial_speed
 
         for r in R_STRANDS:
             self.__pixels[r.slice] = iter_rgb(r.length, self.R_COLORS)
@@ -277,35 +279,42 @@ class DisplaySun(DisplayBase):
             self.__pixels[s.begin] = gamma_adjust_rgb(self.__pixels[s.begin], self.ALIAS_GAMMA_ADJUSTMENT)
             self.__pixels[s.end] = gamma_adjust_rgb(self.__pixels[s.end], self.ALIAS_GAMMA_ADJUSTMENT)
 
+    def set_speed(self, speed):
+        self.__speed = speed
+
     def update(self, frame_time, pixels, lepton_data):
         pixels[:] = self.__pixels
 
         for r in R_STRANDS:
             for i in range(int(self.__frame_number / 4), r.length, int(r.length / 4)):
 
-                if i > 0:
-                    p = r.begin + (i - 1)
-                    pixels[p] = gamma_adjust_rgb(pixels[p], 0.97)
+                p = r.begin + (i - 1) if i > 0 else r.end
+                pixels[p] = gamma_adjust_rgb(pixels[p], 0.87)
 
                 p = r.begin + i
-                pixels[p] = gamma_adjust_rgb(pixels[p], 0.93)
+                pixels[p] = gamma_adjust_rgb(pixels[p], 0.83)
 
-                if i < 31:
-                    p = r.begin + (i + 1)
-                    pixels[p] = gamma_adjust_rgb(pixels[p], 0.97)
+                p = r.begin + (i + 1) if i < 31 else r.begin
+                pixels[p] = gamma_adjust_rgb(pixels[p], 0.87)
 
-        self.__frame_number += 1
-        if self.__frame_number == 32:
+        self.__frame_number += self.__speed
+        if self.__frame_number >= 32:
             self.__frame_number = 0
 
 
 class FrameTime(object):
+
+    MAX_FPS = 60
+    MIN_DELTA = 1.0 / MAX_FPS
 
     def __init__(self):
         self.__last_time = time.clock()
         self.__last_delta = 0.0
         self.__last_display_time = self.__last_time
         self.__frame_count = 0
+        self.__total_sleep_time = 0
+        print('MAX_FPS', self.MAX_FPS)
+        print('MIN_DELTA', self.MIN_DELTA)
 
     @property
     def current(self):
@@ -318,13 +327,21 @@ class FrameTime(object):
     def tick(self):
 
         current_time = time.clock()
+        delta = current_time - self.__last_time
+        sleep_time = self.MIN_DELTA - delta
+        if sleep_time < 0:
+            sleep_time = 0
+        self.__total_sleep_time += sleep_time
+        time.sleep(sleep_time)
+        current_time = time.clock()
+
         self.__last_delta = current_time - self.__last_time
         self.__last_time = current_time
 
         self.__frame_count += 1
         display_delta_time = current_time - self.__last_display_time
         if display_delta_time >= 10:
-            print('update fps', self.__frame_count / display_delta_time)
+            print('update fps', self.__frame_count / display_delta_time, self.__total_sleep_time / self.__frame_count)
             self.__frame_count = 0
             self.__last_display_time = current_time
 
@@ -340,21 +357,14 @@ def lepton_process(connection, lepton_device):
     print('lepton process exited')
 
 
-class UpdateThread(QtCore.QThread):
+class LeptonThread(QtCore.QThread):
 
-    NUM_PIXELS = 1024
-    OPC_ADDRESS = 'localhost:7890'
     LEPTON_DEVICE = "/dev/spidev0.1"
 
-    image_captured = QtCore.pyqtSignal(QtGui.QImage)
+    lepton_frame_captured = QtCore.pyqtSignal(np.ndarray)
 
-    def __init__(self, parent, initial_display):
-        QtCore.QThread.__init__(self, parent)
-
-        self.__exiting = False
-        self.__display = initial_display
-        self.__opc_client = opc.Client(self.OPC_ADDRESS)
-
+    def __init__(self, parent):
+        super(LeptonThread, self).__init__(parent)
         parent_conn, child_conn = multiprocessing.Pipe()
         self.__lepton_process = multiprocessing.Process(target=lepton_process, args=(child_conn, self.LEPTON_DEVICE))
         self.__lepton_process.start()
@@ -362,46 +372,66 @@ class UpdateThread(QtCore.QThread):
 
     @QtCore.pyqtSlot()
     def stop(self):
+        print('lepton thread stop requested')
         self.__connection.send({'stop': True})
         self.__connection.close()
+
+    def run(self):
+
+        print('lepton thread running')
+
+        try:
+
+            while True:
+                lepton_frame = self.__connection.recv()
+                cv2.normalize(lepton_frame, lepton_frame, 0, 255, cv2.NORM_MINMAX)
+                self.lepton_frame_captured.emit(lepton_frame)
+
+        except IOError:
+            pass
+
+        print('lepton thread exiting')
+        self.__lepton_process.join()
+        print('lepton thread exited')
+
+
+class UpdateThread(QtCore.QThread):
+
+    NUM_PIXELS = 1024
+    OPC_ADDRESS = 'localhost:7890'
+
+    def __init__(self, parent, initial_display):
+        QtCore.QThread.__init__(self, parent)
+        self.__exiting = False
+        self.__display = initial_display
+        self.__opc_client = opc.Client(self.OPC_ADDRESS)
+        self.__lepton_frame = None
+
+    @QtCore.pyqtSlot()
+    def stop(self):
+        print('update thread stop requested')
+        self.__exiting = True
 
     @QtCore.pyqtSlot()
     def set_display(self, display):
         self.__display = display
 
-    def __produce_image(self, lepton_frame):
-        rgb_data = np.uint8(cv2.cvtColor(lepton_frame, cv2.COLOR_GRAY2RGB))
-        rows, columns, channel = rgb_data.shape
-        bytesPerLine = 3 * columns
-        image = QtGui.QImage(rgb_data.data, columns, rows, bytesPerLine, QtGui.QImage.Format_RGB888)
-        self.image_captured.emit(image)
+    @QtCore.pyqtSlot()
+    def set_lepton_frame(self, lepton_frame):
+        self.__lepton_frame = lepton_frame
 
     def run(self):
 
         print('update thread running')
 
         frame_time = FrameTime()
-
-        while True:
-
+        while not self.__exiting:
             frame_time.tick()
-
-            try:
-                lepton_frame = self.__connection.recv()
-            except IOError:
-                break
-
-            cv2.normalize(lepton_frame, lepton_frame, 0, 255, cv2.NORM_MINMAX)
-
-            self.__produce_image(lepton_frame)
-
             pixels = [(0, 0, 0)] * self.NUM_PIXELS
-            self.__display.update(frame_time, pixels, lepton_frame)
+            self.__display.update(frame_time, pixels, self.__lepton_frame)
             self.__opc_client.put_pixels(pixels)
 
-        print('update thread exiting')
-        self.__lepton_process.join()
-        print('lepton thread exited')
+        print('update thread exited')
 
 
 class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
@@ -436,25 +466,39 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
         self.__display_chase = DisplayChase(self.chaseSpeedSpinBox.value())
         self.__display_pixel = DisplayPixel(self.pixelIndexSpinBox.value())
         self.__display_r_s = DisplayRS(self.rSpinBox.value(), self.sSpinBox.value())
-        self.__display_sun = DisplaySun()
+        self.__display_sun = DisplaySun(self.chaseSpeedSpinBox.value())
 
         # update thread
         self.__update_thread = UpdateThread(self, self.__display_sun)
-        self.__update_thread.image_captured.connect(self.__display_image)
         self.__update_thread.start()
+
+        # lepton thread
+        self.__lepton_thread = LeptonThread(self)
+        self.__lepton_thread.lepton_frame_captured.connect(self.__lepton_frame_captured)
+        self.__lepton_thread.start()
 
         print('main window started')
 
     def closeEvent(self, event):
         print('main window stopping')
+        self.__lepton_thread.stop()
         self.__update_thread.stop()
+        self.__lepton_thread.wait()
         self.__update_thread.wait()
         print('main window stopped')
+
+    def __lepton_frame_captured(self, lepton_frame):
+        self.__display_image(lepton_frame)
+        self.__update_thread.set_lepton_frame(lepton_frame)
 
     def __perform_ffc(self):
         subprocess.call(['/home/pi/LeptonModule-master/software/flir_ffc/flir_ffc'])
 
-    def __display_image(self, image):
+    def __display_image(self, lepton_frame):
+        rgb_data = np.uint8(cv2.cvtColor(lepton_frame, cv2.COLOR_GRAY2RGB))
+        rows, columns, channel = rgb_data.shape
+        bytesPerLine = 3 * columns
+        image = QtGui.QImage(rgb_data.data, columns, rows, bytesPerLine, QtGui.QImage.Format_RGB888)
         pixmap = QtGui.QPixmap.fromImage(image)
         pixmap = pixmap.scaled(self.imageLabel.width(), self.imageLabel.height(), QtCore.Qt.KeepAspectRatio)
         self.imageLabel.setPixmap(pixmap)
@@ -472,8 +516,8 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
         self.__update_thread.set_display(self.__display_r_s)
 
     def __chase_speed_changed(self, speed):
-        self.__display_chase.set_speed(speed)
-        self.__update_thread.set_display(self.__display_chase)
+        self.__display_sun.set_speed(speed)
+        self.__update_thread.set_display(self.__display_sun)
 
     def __all_on_clicked(self):
         self.__update_thread.set_display(self.__display_all_on)

@@ -35,6 +35,9 @@
        </item>
        <item>
         <widget class="QSpinBox" name="pixelIndexStepSpinBox">
+         <property name="toolTip">
+          <string>pixel index increment</string>
+         </property>
          <property name="minimum">
           <number>1</number>
          </property>
@@ -45,6 +48,9 @@
        </item>
        <item>
         <widget class="QSpinBox" name="pixelIndexSpinBox">
+         <property name="toolTip">
+          <string>pixel index</string>
+         </property>
          <property name="wrapping">
           <bool>true</bool>
          </property>
@@ -69,6 +75,9 @@
        </item>
        <item>
         <widget class="QSpinBox" name="chaseSpeedSpinBox">
+         <property name="toolTip">
+          <string>chase speed</string>
+         </property>
          <property name="maximum">
           <number>9</number>
          </property>
@@ -79,21 +88,27 @@
        </item>
        <item>
         <widget class="QSpinBox" name="sSpinBox">
+         <property name="toolTip">
+          <string>s index</string>
+         </property>
          <property name="wrapping">
           <bool>true</bool>
          </property>
          <property name="maximum">
-          <number>8</number>
+          <number>9</number>
          </property>
         </widget>
        </item>
        <item>
         <widget class="QSpinBox" name="rSpinBox">
+         <property name="toolTip">
+          <string>r index</string>
+         </property>
          <property name="wrapping">
           <bool>true</bool>
          </property>
          <property name="maximum">
-          <number>13</number>
+          <number>15</number>
          </property>
         </widget>
        </item>
