@@ -26,170 +26,93 @@ from pylepton import Lepton
 import cv2
 
 
-class DisplayBase(object):
+class DisplayBase(QtCore.QObject):
 
     def __init__(self):
-        pass
+        super(DisplayBase, self).__init__()
 
 
-Strand = collections.namedtuple('Strand', ['index', 'begin', 'end', 'length', 'slice'])
+Strand = collections.namedtuple('Strand', ['index', 'begin', 'end', 'length', 'slice', 'color_adjustment'])
 
 
 def strands(end_point_list):
+
     result = []
+
     for end_points in end_point_list:
-        if end_points[0] < end_points[1]:
-            result.append(
-                Strand(
-                    len(result),
-                    end_points[0], end_points[1],
-                    (end_points[1] - end_points[0]) + 1,
-                    slice(end_points[0], end_points[1] + 1, 1)
-                )
-            )
+
+        index = len(result)
+
+        begin, end, color_adjustment = end_points
+
+        if begin < end:
+            length = end - begin + 1
+            slice_ = slice(begin, end + 1, 1)
         else:
-            result.append(
-                Strand(
-                    len(result),
-                    end_points[0], end_points[1],
-                    (end_points[0] - end_points[1]) + 1,
-                    slice(end_points[0], end_points[1] - 1, -1)
-                )
+            length = begin - end + 1
+            slice_ = slice(begin, end - 1, -1)
+
+        result.append(
+            Strand(
+                index,
+                begin,
+                end,
+                length,
+                slice_,
+                color_adjustment
             )
+        )
+
     return result
 
+NO_COLOR_ADJUSTMENT = [0, 0, 0]
 
 S_STRANDS = strands(
     [
-        (384, 406),    # 0
-        (192, 214),    # 1
-        (256, 276),    # 2
-        (724, 704),    # 3
-        (658, 640),    # 4
-        (448, 464),    # 5
-        (479, 465),    # 6
-        (659, 671),    # 7
-        (223, 215),    # 8
-        (725, 729)     # 9
+        (384, 406, [0, 0, 0]),    # 0
+        (192, 214, [0, 0, 0]),    # 1
+        (256, 276, [0, 0, 0]),    # 2
+        (724, 704, [0, 0, 0]),    # 3
+        (658, 640, [0, 0, 0]),    # 4
+        (448, 464, [0, 0, 0]),    # 5
+        (479, 465, [0, 0, 0]),    # 6
+        (659, 671, [0, 0, 0]),    # 7
+        (223, 215, [0, 0, 0]),    # 8
+        (725, 729, [0, 0, 0])     # 9
     ]
 )
 
 R_STRANDS = strands(
     [
-        (128, 159),  # 0 (L)
-        (64, 95),    # 1
-        (320, 351),  # 2
-        (960, 991),  # 3
-        (0, 31),     # 4
-        (224, 255),  # 5
-        (576, 607),  # 6
-        (480, 511),  # 7
-        (768, 799),  # 8
-        (896, 927),  # 9
-        (832, 863),  # 10
-        (512, 543),  # 11
-        (730, 761),  # 12
-        (672, 703),  # 13
-        (277, 308),  # 14
-        (407, 438)   # 15 (R)
+        (128, 159, [0, 0, 0]),  # 0 (L)
+        ( 64,  95, [0, 0, 0]),  # 1
+        (320, 351, [0, 0, 0]),  # 2
+        (960, 991, [0, 0, 0]),  # 3
+        (  0,  31, [0, 0, 0]),  # 4
+        (224, 255, [0, 0, 0]),  # 5
+        (576, 607, [0, 0, 0]),  # 6
+        (480, 511, [0, 0, 0]),  # 7
+        (768, 799, [0, 0, 0]),  # 8
+        (896, 927, [0, 0, 0]),  # 9
+        (832, 863, [0, 0, 0]),  # 10pixels[strand.slice] += strand.color_adjustment
+        (512, 543, [0, 0, 0]),  # 11
+        (730, 761, [0, 0, 0]),  # 12
+        (672, 703, [0, 0, 0]),  # 13
+        (277, 308, [0, 0, 0]),  # 14
+        (407, 438, [0, 0, 0])   # 15 (R)
     ]
 )
+
+ALL_STRANDS = []
+ALL_STRANDS.extend(R_STRANDS)
+ALL_STRANDS.extend(S_STRANDS)
 
 print('R_STRANDS\n ', '\n  '.join([str(strand) for strand in R_STRANDS]))
 print('S_STRANDS\n ', '\n  '.join([str(strand) for strand in S_STRANDS]))
 
-S_COLOR_ADJUST = [
-    (0, 0, 0),  # 0
-    (0, 0, 0),  # 1
-    (0, 0, 0),  # 2
-    (0, 0, 0),  # 3
-    (0, 0, 0),  # 4
-    (0, 0, 0),  # 5
-    (0, 0, 0),  # 6
-    (0, 0, 0),  # 7
-    (0, 0, 0),  # 8
-    (0, 0, 0)   # 9
-]
 
-R_COLOR_ADJUST = [
-    (0, 0, 0),  # 0
-    (0, 0, 0),  # 1
-    (0, 0, 0),  # 2
-    (0, 0, 0),  # 3
-    (0, 0, 0),  # 4
-    (0, 0, 0),  # 5
-    (0, 0, 0),  # 6
-    (0, 0, 0),  # 7
-    (0, 0, 0),  # 8
-    (0, 0, 0),  # 9
-    (0, 0, 0),  # 10
-    (0, 0, 0),  # 11
-    (0, 0, 0),  # 12
-    (0, 0, 0),  # 13
-    (0, 0, 0),  # 14
-    (0, 0, 0)   # 15
-]
-
-
-class DisplayAllOn(DisplayBase):
-
-    def __init__(self):
-        super(DisplayAllOn, self).__init__()
-
-    def update(self, frame_time, pixels, lepton_data):
-        pixels.fill(128)
-
-
-class DisplayAllOff(DisplayBase):
-
-    def __init__(self):
-        super(DisplayAllOff, self).__init__()
-
-    def update(self, frame_time, pixels, lepton_data):
-        pass
-
-
-class DisplayRS(DisplayBase):
-
-    def __init__(self, initial_r_index, initial_s_index):
-        super(DisplayRS, self).__init__()
-        self.__r_index = initial_r_index
-        self.__s_index = initial_s_index
-
-    def set_r_index(self, r_index):
-        self.__r_index = r_index
-
-    def set_s_index(self, s_index):
-        self.__s_index = s_index
-
-    def update(self, frame_time, pixels, lepton_data):
-
-        r = R_STRANDS[self.__r_index]
-        pixels[r.slice] = [123, 31, 173]
-        pixels[r.begin] = [244, 152, 66]
-        pixels[r.end] = [35, 234, 21]
-
-        s = S_STRANDS[self.__s_index]
-        pixels[s.slice] = [123, 31, 173]
-        pixels[s.begin] = [244, 152, 66]
-        pixels[s.end] = [35, 234, 21]
-
-
-class DisplayPixel(DisplayBase):
-
-    def __init__(self, initial_index):
-        super(DisplayPixel, self).__init__()
-        self.__index = initial_index
-
-    def set_index(self, index):
-        self.__index = index
-
-    def update(self, frame_time, pixels, lepton_data):
-        if self.__index > 0:
-            pixels[self.__index - 1] = [128, 0, 0]
-        pixels[self.__index] = [255, 255, 255]
-        if self.__index < 1023:
-            pixels[self.__index + 1] = [0, 0, 128]
+NUM_PIXELS = 1024
+MAX_S_HALF = 11
 
 
 def interp_rgb(x, indexes, colors):
@@ -204,9 +127,6 @@ def iter_rgb(count, colors):
     return [interp_rgb(x, indexes, colors) for x in range(0, count)]
 
 
-MAX_S_HALF = 11
-
-
 def iter_rgb_s_dist(s, colors):
 
     indexes = np.linspace(-MAX_S_HALF, MAX_S_HALF, len(colors))
@@ -218,12 +138,121 @@ def iter_rgb_s_dist(s, colors):
     return [interp_rgb(math.hypot(x, y), indexes, colors) for x in range(-half, half + 1)]
 
 
-def gamma_adjust_rgb(rgb, adjustment):
-    return rgb * adjustment
-    #r = int(rgb[0] * adjustment)
-    #g = int(rgb[1] * adjustment)
-    #b = int(rgb[2] * adjustment)
-    #return [r, g, b]
+class DisplayColor(DisplayBase):
+
+    TARGET_R = 1
+    TARGET_S = 2
+
+    color_changed = QtCore.pyqtSignal(list)
+    adjustment_changed = QtCore.pyqtSignal(list)
+
+    def __init__(self, initial_color, initial_r_index, initial_s_index):
+        super(DisplayColor, self).__init__()
+        self.__color = initial_color
+        self.__r_index = initial_r_index
+        self.__s_index = initial_s_index
+        self.__target = self.TARGET_R
+
+    def set_r_index(self, index):
+        self.__r_index = index
+        self.__target = self.TARGET_R
+        self.adjustment_changed.emit(self.get_adjust_color())
+
+    def set_s_index(self, index):
+        self.__s_index = index
+        self.__target = self.TARGET_S
+        self.adjustment_changed.emit(self.get_adjust_color())
+
+    def set_red_color(self, red):
+        self.__color[0] = red
+        self.color_changed.emit(self.__color)
+
+    def set_green_color(self, green):
+        self.__color[1] = green
+        self.color_changed.emit(self.__color)
+
+    def set_blue_color(self, blue):
+        self.__color[2] = blue
+        self.color_changed.emit(self.__color)
+
+    def set_red_adjust(self, red):
+        self.__set_adjust_color(red, 0)
+
+    def set_green_adjust(self, green):
+        self.__set_adjust_color(green, 1)
+
+    def set_blue_adjust(self, blue):
+        self.__set_adjust_color(blue, 2)
+
+    def __set_adjust_color(self, color, index):
+        self.get_adjust_color()[index] = color
+        self.adjustment_changed.emit(self.get_adjust_color())
+
+    def __get_target_strand(self):
+        if self.__target == self.TARGET_S:
+            return S_STRANDS[self.__s_index]
+        else:
+            return R_STRANDS[self.__r_index]
+
+    def get_adjust_color(self):
+        return self.__get_target_strand().color_adjustment
+
+    def set_all_off(self):
+        self.__color = [0, 0, 0]
+        self.color_changed.emit(self.__color)
+
+    def set_all_half(self):
+        self.__color = [128, 128, 128]
+        self.color_changed.emit(self.__color)
+
+    def set_all_full(self):
+        self.__color = [128, 128, 128]
+        self.color_changed.emit(self.__color)
+
+    def update(self, frame_time, pixels, lepton_data):
+
+        pixels[:] = self.__color
+
+        strand = self.__get_target_strand()
+        pixels[strand.begin] = [244, 152, 66]
+        pixels[strand.end] = [35, 234, 21]
+
+
+
+class DisplayIndex(DisplayBase):
+
+    def __init__(self, initial_pixel_index, initial_r_index, initial_s_index):
+        super(DisplayIndex, self).__init__()
+        self.__pixel_index = initial_pixel_index
+        self.__r_index = initial_r_index
+        self.__s_index = initial_s_index
+
+    def set_r_index(self, r_index):
+        self.__r_index = r_index
+
+    def set_s_index(self, s_index):
+        self.__s_index = s_index
+
+    def set_pixel_index(self, pixel_index):
+        self.__pixel_index = pixel_index
+
+    def update(self, frame_time, pixels, lepton_data):
+
+        r = R_STRANDS[self.__r_index]
+        pixels[r.slice] = [123, 31, 173]
+        pixels[r.begin] = [244, 152, 66]
+        pixels[r.end] = [35, 234, 21]
+
+        s = S_STRANDS[self.__s_index]
+        pixels[s.slice] = [123, 31, 173]
+        pixels[s.begin] = [244, 152, 66]
+        pixels[s.end] = [35, 234, 21]
+
+        if self.__pixel_index > 0:
+            pixels[self.__pixel_index - 1] = [128, 0, 0]
+        pixels[self.__pixel_index] = [255, 255, 255]
+        if self.__pixel_index < 1023:
+            pixels[self.__pixel_index + 1] = [0, 0, 128]
 
 
 class DisplaySun(DisplayBase):
@@ -242,7 +271,7 @@ class DisplaySun(DisplayBase):
     def __init__(self, initial_speed):
         super(DisplaySun, self).__init__()
         self.__frame_number = 0
-        self.__pixels = np.zeros([UpdateThread.NUM_PIXELS, 3], dtype=np.uint8)
+        self.__pixels = np.zeros([NUM_PIXELS, 3], dtype=np.uint8)
         self.__speed = initial_speed
 
         for r in R_STRANDS:
@@ -250,11 +279,6 @@ class DisplaySun(DisplayBase):
 
         for s in S_STRANDS:
             self.__pixels[s.slice] = iter_rgb_s_dist(s, self.S_COLORS)
-
-        for i in [1, 3, 5]:
-            s = S_STRANDS[i]
-            self.__pixels[s.begin] = gamma_adjust_rgb(self.__pixels[s.begin], self.ALIAS_GAMMA_ADJUSTMENT)
-            self.__pixels[s.end] = gamma_adjust_rgb(self.__pixels[s.end], self.ALIAS_GAMMA_ADJUSTMENT)
 
     def set_speed(self, speed):
         self.__speed = speed
@@ -288,6 +312,7 @@ class FrameTime(object):
         self.__last_delta = 0.0
         self.__last_display_time = self.__last_time
         self.__frame_count = 0
+        self.__total_free_time = 0.0
 
     @property
     def current(self):
@@ -299,7 +324,9 @@ class FrameTime(object):
 
     def tick(self):
 
-        time.sleep(max(self.SLEEP_TIME - (time.time() - self.__last_time), 0.0))
+        free_time = max(self.SLEEP_TIME - (time.time() - self.__last_time), 0.0)
+        self.__total_free_time += free_time
+        time.sleep(free_time)
 
         current_time = time.time()
 
@@ -309,9 +336,12 @@ class FrameTime(object):
         self.__frame_count += 1
         display_delta_time = current_time - self.__last_display_time
         if display_delta_time >= 5:
-            print('update fps', self.__frame_count / display_delta_time)
+            print(
+                'update fps', self.__frame_count / display_delta_time,
+                'avg free time', self.__total_free_time / self.__frame_count)
             self.__frame_count = 0
             self.__last_display_time = current_time
+            self.__total_free_time = 0.0
 
 
 def lepton_process(connection, lepton_device):
@@ -365,7 +395,6 @@ class LeptonThread(QtCore.QThread):
 
 class UpdateThread(QtCore.QThread):
 
-    NUM_PIXELS = 1024
     OPC_ADDRESS = 'localhost:7890'
     OPC_HEADER_SIZE = 4
 
@@ -375,6 +404,7 @@ class UpdateThread(QtCore.QThread):
         self.__display = initial_display
         self.__opc_client = opc.Client(self.OPC_ADDRESS)
         self.__lepton_frame = None
+        self.__color_adjustment_enabled = True
 
     @QtCore.pyqtSlot()
     def stop(self):
@@ -389,27 +419,37 @@ class UpdateThread(QtCore.QThread):
     def set_lepton_frame(self, lepton_frame):
         self.__lepton_frame = lepton_frame
 
+    @QtCore.pyqtSlot()
+    def set_color_adjustment_enabled(self, enabled):
+        self.__color_adjustment_enabled = enabled
+
     def run(self):
 
         print('update thread running')
 
-        blen = self.NUM_PIXELS * 3
-        len_hi = int(blen / 256)
-        len_lo = blen % 256
-
-        opc_buffer = np.empty([(self.NUM_PIXELS * 3) + self.OPC_HEADER_SIZE], dtype=np.uint8)
+        opc_buffer = np.empty([(NUM_PIXELS * 3) + self.OPC_HEADER_SIZE], dtype=np.uint8)
         opc_buffer[0] = 0                               # channel
         opc_buffer[1] = 0                               # command = set color
-        opc_buffer[2] = len_hi  # len hi byte
-        opc_buffer[3] = len_lo  # len lo byte
+        opc_buffer[2] = int(NUM_PIXELS * 3 / 256)  # len hi byte
+        opc_buffer[3] = NUM_PIXELS * 3 % 256       # len lo byte
 
-        pixels = opc_buffer[self.OPC_HEADER_SIZE:].reshape([self.NUM_PIXELS, 3])
+        pixels = opc_buffer[self.OPC_HEADER_SIZE:].reshape([NUM_PIXELS, 3])
 
         frame_time = FrameTime()
+
         while not self.__exiting:
+
             frame_time.tick()
+
             pixels.fill(0)
+
             self.__display.update(frame_time, pixels, self.__lepton_frame)
+
+            if self.__color_adjustment_enabled:
+                for strand in ALL_STRANDS:
+                    if strand.color_adjustment != NO_COLOR_ADJUSTMENT:
+                        pixels[strand.slice] += strand.color_adjustment
+
             self.__opc_client.put_message(opc_buffer.tostring())
 
         print('update thread exited')
@@ -425,44 +465,116 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
 
         self.setupUi(self)
 
-        # pixel index
-        self.pixelIndexSpinBox.valueChanged.connect(self.__pixel_index_changed)
-        self.pixelIndexStepSpinBox.valueChanged.connect(lambda value: self.pixelIndexSpinBox.setSingleStep(value))
-
-        # s/r index
-        self.sSpinBox.valueChanged.connect(self.__s_index_changed)
-        self.rSpinBox.valueChanged.connect(self.__r_index_changed)
-
-        # chase speed
-        self.chaseSpeedSpinBox.valueChanged.connect(self.__chase_speed_changed)
-
         # buttons
         self.performFFCButton.clicked.connect(self.__perform_ffc)
-        self.allOnPushButton.clicked.connect(self.__all_on_clicked)
-        self.allOffPushButton.clicked.connect(self.__all_off_clicked)
 
-        # displays
-        self.__display_all_off = DisplayAllOff()
-        self.__display_all_on = DisplayAllOn()
-        self.__display_pixel = DisplayPixel(self.pixelIndexSpinBox.value())
-        self.__display_r_s = DisplayRS(self.rSpinBox.value(), self.sSpinBox.value())
-        self.__display_sun = DisplaySun(self.chaseSpeedSpinBox.value())
+        # sun display
+
+        self.__display_sun = DisplaySun(
+            self.sunSpeedSpinBox.value())
+
+        self.sunSpeedSpinBox.valueChanged.connect(
+            lambda value: self.__display_sun.set_speed(value))
+
+        # index display
+
+        self.__display_index = DisplayIndex(
+            self.pixelIndexSpinBox.value(),
+            self.rIndexSpinBox.value(),
+            self.sIndexSpinBox.value())
+
+        self.pixelIndexSpinBox.valueChanged.connect(
+            lambda index: self.__display_index.set_pixel_index(index))
+
+        self.pixelIndexStepSpinBox.valueChanged.connect(
+            lambda value: self.pixelIndexSpinBox.setSingleStep(value))
+
+        self.sIndexSpinBox.valueChanged.connect(
+            lambda index: self.__display_index.set_s_index(index))
+
+        self.rIndexSpinBox.valueChanged.connect(
+            lambda index: self.__display_index.set_r_index(index))
+
+        # color display
+
+        self.__display_color = DisplayColor(
+            [self.redColorSpinBox.value(), self.greenColorSpinBox.value(), self.blueColorSpinBox.value()],
+            self.rAdjustmentSpinBox.value(),
+            self.sAdjustmentSpinBox.value())
+
+        self.allFullPushButton.clicked.connect(
+            self.__display_color.set_all_full)
+
+        self.allHalfPushButton.clicked.connect(
+            self.__display_color.set_all_half)
+
+        self.allOffPushButton.clicked.connect(
+            self.__display_color.set_all_off)
+
+        self.redColorSpinBox.valueChanged.connect(
+            lambda value: self.__display_color.set_red_color(value))
+
+        self.greenColorSpinBox.valueChanged.connect(
+            lambda value: self.__display_color.set_green_color(value))
+
+        self.blueColorSpinBox.valueChanged.connect(
+            lambda value: self.__display_color.set_blue_color(value))
+
+        self.redColorSlider.valueChanged.connect(
+            lambda value: self.__display_color.set_red_color(value))
+
+        self.greenColorSlider.valueChanged.connect(
+            lambda value: self.__display_color.set_green_color(value))
+
+        self.blueColorSlider.valueChanged.connect(
+            lambda value: self.__display_color.set_blue_color(value))
+
+        self.redAdjustmentSpinBox.valueChanged.connect(
+            lambda value: self.__display_color.set_red_adjust(value))
+
+        self.greenAdjustmentSpinBox.valueChanged.connect(
+            lambda value: self.__display_color.set_green_adjust(value))
+
+        self.blueAdjustmentSpinBox.valueChanged.connect(
+            lambda value: self.__display_color.set_blue_adjust(value))
+
+        self.redAdjustmentSlider.valueChanged.connect(
+            lambda value: self.__display_color.set_red_adjust(value))
+
+        self.greenAdjustmentSlider.valueChanged.connect(
+            lambda value: self.__display_color.set_green_adjust(value))
+
+        self.blueAdjustmentSlider.valueChanged.connect(
+            lambda value: self.__display_color.set_blue_adjust(value))
+
+        self.rAdjustmentSpinBox.valueChanged.connect(
+            lambda value: self.__display_color.set_r_index(value))
+
+        self.sAdjustmentSpinBox.valueChanged.connect(
+            lambda value: self.__display_color.set_s_index(value))
+
+        self.adjustmentGroupBox.toggled.connect(
+            lambda enabled: self.__update_thread.set_color_adjustment_enabled(enabled))
+
+        self.__display_color.color_changed.connect(
+            self.__on_color_changed)
+
+        self.__display_color.adjustment_changed.connect(
+            self.__on_adjustment_changed)
+
+        # tool box
+        self.__tool_box_displays = [self.__display_sun, self.__display_color, self.__display_index]
+        self.toolBox.currentChanged.connect(
+            lambda index: self.__update_thread.set_display(self.__tool_box_displays[index]))
 
         # update thread
-        self.__update_thread = UpdateThread(self, self.__display_sun)
+        self.__update_thread = UpdateThread(self, self.__tool_box_displays[self.toolBox.currentIndex()])
         self.__update_thread.start()
 
         # lepton thread
         self.__lepton_thread = LeptonThread(self)
         self.__lepton_thread.lepton_frame_captured.connect(self.__lepton_frame_captured)
         self.__lepton_thread.start()
-
-        # rgb / color adjust
-        self.redSpinBox.valueChanged.connect(self.__color_changed)
-        self.greenSpinBox.valueChanged.connect(self.__color_changed)
-        self.blueSpinBox.valueChanged.connect(self.__color_changed)
-        self.__color_adjust_s_index = None
-        self.__color_adjust_r_index = None
 
         print('main window started')
 
@@ -490,49 +602,21 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
         pixmap = pixmap.scaled(self.imageLabel.width(), self.imageLabel.height(), QtCore.Qt.KeepAspectRatio)
         self.imageLabel.setPixmap(pixmap)
 
-    def __pixel_index_changed(self, index):
-        self.__display_pixel.set_index(index)
-        self.__update_thread.set_display(self.__display_pixel)
+    def __on_color_changed(self, color):
+        self.redColorSlider.setValue(color[0])
+        self.redColorSpinBox.setValue(color[0])
+        self.greenColorSlider.setValue(color[1])
+        self.greenColorSpinBox.setValue(color[1])
+        self.blueColorSlider.setValue(color[2])
+        self.blueColorSpinBox.setValue(color[2])
 
-    def __r_index_changed(self, index):
-        #self.__display_r_s.set_r_index(index)
-        #self.__update_thread.set_display(self.__display_r_s)
-        self.__set_color_adjust_r_index(index)
-
-    def __s_index_changed(self, index):
-        #self.__display_r_s.set_s_index(index)
-        #self.__update_thread.set_display(self.__display_r_s)
-        self.__set_color_adjust_s_index(index)
-
-    def set_color_adjust_s_index(self, index):
-        self.__color_adjust_r_index = None
-        self.__color_adjust_s_index = index
-        self.__show_color(S_COLOR_ADJUST[self.__color_adjust_s_index])
-
-    def set_color_adjust_r_index(self, index):
-        self.__color_adjust_s_index = None
-        self.__color_adjust_r_index = index
-        self.__show_color(R_COLOR_ADJUST[self.__color_adjust_r_index])
-
-    def __show_color(self, rgb):
-        self.redSpinBox.setValue(R_COLOR_ADJUST)
-
-    def __color_changed(self, ignored):
-        rgb = (self.redSpinBox.value, self.greenSpinBox.value, self.blueSpinBox.value)
-        if self.__color_adjust_r_index:
-            R_COLOR_ADJUST[self.__color_adjust_r_index] = rgb
-        else:
-            S_COLOR_ADJUST[self.__color_adjust_r_index] = rgb
-
-    def __chase_speed_changed(self, speed):
-        self.__display_sun.set_speed(speed)
-        self.__update_thread.set_display(self.__display_sun)
-
-    def __all_on_clicked(self):
-        self.__update_thread.set_display(self.__display_all_on)
-
-    def __all_off_clicked(self):
-        self.__update_thread.set_display(self.__display_all_off)
+    def __on_adjustment_changed(self, color):
+        self.redAdjustmentSlider.setValue(color[0])
+        self.redAdjustmentSpinBox.setValue(color[0])
+        self.greenAdjustmentSlider.setValue(color[1])
+        self.greenAdjustmentSpinBox.setValue(color[1])
+        self.blueAdjustmentSlider.setValue(color[2])
+        self.blueAdjustmentSpinBox.setValue(color[2])
 
 
 def main():
