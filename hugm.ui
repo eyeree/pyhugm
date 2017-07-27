@@ -77,6 +77,14 @@
          <number>1</number>
         </property>
         <widget class="QWidget" name="sunPage">
+         <property name="geometry">
+          <rect>
+           <x>0</x>
+           <y>0</y>
+           <width>859</width>
+           <height>292</height>
+          </rect>
+         </property>
          <attribute name="label">
           <string>Sun</string>
          </attribute>
@@ -113,15 +121,15 @@
          <property name="geometry">
           <rect>
            <x>0</x>
-           <y>-5</y>
-           <width>496</width>
-           <height>252</height>
+           <y>0</y>
+           <width>859</width>
+           <height>292</height>
           </rect>
          </property>
          <attribute name="label">
           <string>Color Adjust</string>
          </attribute>
-         <layout class="QHBoxLayout" name="horizontalLayout_11">
+         <layout class="QHBoxLayout" name="horizontalLayout_11" stretch="0,0,1">
           <item>
            <widget class="QGroupBox" name="groupBox">
             <property name="title">
@@ -362,6 +370,12 @@
           </item>
           <item>
            <widget class="QGroupBox" name="adjustmentGroupBox">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="title">
              <string>Adjustment</string>
             </property>
@@ -379,7 +393,7 @@
               <number>0</number>
              </property>
              <item row="0" column="1">
-              <layout class="QHBoxLayout" name="horizontalLayout_7" stretch="3,0">
+              <layout class="QHBoxLayout" name="horizontalLayout_7" stretch="0,0">
                <item>
                 <widget class="QSlider" name="redAdjustmentSlider">
                  <property name="sizePolicy">
@@ -389,19 +403,19 @@
                   </sizepolicy>
                  </property>
                  <property name="minimum">
-                  <number>-32</number>
+                  <number>0</number>
                  </property>
                  <property name="maximum">
-                  <number>32</number>
+                  <number>20</number>
                  </property>
                  <property name="pageStep">
-                  <number>8</number>
+                  <number>1</number>
                  </property>
                  <property name="value">
-                  <number>0</number>
+                  <number>5</number>
                  </property>
                  <property name="sliderPosition">
-                  <number>0</number>
+                  <number>5</number>
                  </property>
                  <property name="orientation">
                   <enum>Qt::Horizontal</enum>
@@ -410,33 +424,39 @@
                   <enum>QSlider::TicksAbove</enum>
                  </property>
                  <property name="tickInterval">
-                  <number>8</number>
+                  <number>5</number>
                  </property>
                 </widget>
                </item>
                <item>
-                <widget class="QSpinBox" name="redAdjustmentSpinBox">
+                <widget class="QDoubleSpinBox" name="redAdjustmentDoubleSpinBox">
                  <property name="sizePolicy">
                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                    <horstretch>0</horstretch>
                    <verstretch>0</verstretch>
                   </sizepolicy>
                  </property>
+                 <property name="decimals">
+                  <number>2</number>
+                 </property>
                  <property name="minimum">
-                  <number>-32</number>
+                  <double>0.700000000000000</double>
                  </property>
                  <property name="maximum">
-                  <number>32</number>
+                  <double>1.300000000000000</double>
+                 </property>
+                 <property name="singleStep">
+                  <double>0.050000000000000</double>
                  </property>
                  <property name="value">
-                  <number>0</number>
+                  <double>1.000000000000000</double>
                  </property>
                 </widget>
                </item>
               </layout>
              </item>
              <item row="1" column="1">
-              <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="3,0">
+              <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="0,0">
                <item>
                 <widget class="QSlider" name="greenAdjustmentSlider">
                  <property name="sizePolicy">
@@ -446,19 +466,19 @@
                   </sizepolicy>
                  </property>
                  <property name="minimum">
-                  <number>-32</number>
+                  <number>0</number>
                  </property>
                  <property name="maximum">
-                  <number>32</number>
+                  <number>20</number>
                  </property>
                  <property name="pageStep">
-                  <number>8</number>
+                  <number>1</number>
                  </property>
                  <property name="value">
-                  <number>0</number>
+                  <number>5</number>
                  </property>
                  <property name="sliderPosition">
-                  <number>0</number>
+                  <number>5</number>
                  </property>
                  <property name="orientation">
                   <enum>Qt::Horizontal</enum>
@@ -467,33 +487,39 @@
                   <enum>QSlider::TicksAbove</enum>
                  </property>
                  <property name="tickInterval">
-                  <number>8</number>
+                  <number>5</number>
                  </property>
                 </widget>
                </item>
                <item>
-                <widget class="QSpinBox" name="greenAdjustmentSpinBox">
+                <widget class="QDoubleSpinBox" name="greenAdjustmentDoubleSpinBox">
                  <property name="sizePolicy">
                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                    <horstretch>0</horstretch>
                    <verstretch>0</verstretch>
                   </sizepolicy>
                  </property>
+                 <property name="decimals">
+                  <number>2</number>
+                 </property>
                  <property name="minimum">
-                  <number>-32</number>
+                  <double>0.700000000000000</double>
                  </property>
                  <property name="maximum">
-                  <number>32</number>
+                  <double>1.300000000000000</double>
+                 </property>
+                 <property name="singleStep">
+                  <double>0.050000000000000</double>
                  </property>
                  <property name="value">
-                  <number>0</number>
+                  <double>1.000000000000000</double>
                  </property>
                 </widget>
                </item>
               </layout>
              </item>
              <item row="2" column="1">
-              <layout class="QHBoxLayout" name="horizontalLayout_10" stretch="3,0">
+              <layout class="QHBoxLayout" name="horizontalLayout_10" stretch="0,0">
                <item>
                 <widget class="QSlider" name="blueAdjustmentSlider">
                  <property name="sizePolicy">
@@ -503,19 +529,19 @@
                   </sizepolicy>
                  </property>
                  <property name="minimum">
-                  <number>-32</number>
+                  <number>0</number>
                  </property>
                  <property name="maximum">
-                  <number>32</number>
+                  <number>20</number>
                  </property>
                  <property name="pageStep">
-                  <number>8</number>
+                  <number>1</number>
                  </property>
                  <property name="value">
-                  <number>0</number>
+                  <number>5</number>
                  </property>
                  <property name="sliderPosition">
-                  <number>0</number>
+                  <number>5</number>
                  </property>
                  <property name="orientation">
                   <enum>Qt::Horizontal</enum>
@@ -524,26 +550,32 @@
                   <enum>QSlider::TicksAbove</enum>
                  </property>
                  <property name="tickInterval">
-                  <number>8</number>
+                  <number>5</number>
                  </property>
                 </widget>
                </item>
                <item>
-                <widget class="QSpinBox" name="blueAdjustmentSpinBox">
+                <widget class="QDoubleSpinBox" name="blueAdjustmentDoubleSpinBox">
                  <property name="sizePolicy">
                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                    <horstretch>0</horstretch>
                    <verstretch>0</verstretch>
                   </sizepolicy>
                  </property>
+                 <property name="decimals">
+                  <number>2</number>
+                 </property>
                  <property name="minimum">
-                  <number>-32</number>
+                  <double>0.700000000000000</double>
                  </property>
                  <property name="maximum">
-                  <number>32</number>
+                  <double>1.300000000000000</double>
+                 </property>
+                 <property name="singleStep">
+                  <double>0.050000000000000</double>
                  </property>
                  <property name="value">
-                  <number>0</number>
+                  <double>1.000000000000000</double>
                  </property>
                 </widget>
                </item>
@@ -610,8 +642,8 @@
           <rect>
            <x>0</x>
            <y>0</y>
-           <width>509</width>
-           <height>167</height>
+           <width>859</width>
+           <height>292</height>
           </rect>
          </property>
          <attribute name="label">

@@ -1,6 +1,8 @@
 from __future__ import print_function
 from __future__ import division
 
+print('loading...')
+
 # python
 import collections
 import math
@@ -59,67 +61,108 @@ def strands(end_point_list):
                 end,
                 length,
                 slice_,
-                color_adjustment
+                color_adjustment.copy()
             )
         )
 
     return result
 
-NO_COLOR_ADJUSTMENT = [0, 0, 0]
+R = 0
+G = 1
+B = 2
+
+R_SLICE = slice(R, R+1)
+G_SLICE = slice(G, G+1)
+B_SLICE = slice(B, B+1)
+
+def rgb(r, g, b):
+    return np.uint8([r, g, b])
+
+COLOR_BLACK  = rgb(0, 0, 0)
+COLOR_GRAY   = rgb(128, 128, 128)
+COLOR_WHITE  = rgb(255, 255, 255)
+COLOR_RED    = rgb(255, 0, 0)
+COLOR_GREEN  = rgb(0, 255, 0)
+COLOR_BLUE   = rgb(0, 0, 255)
+COLOR_YELLOW = COLOR_RED + COLOR_GREEN
+COLOR_PURPLE = COLOR_RED + COLOR_BLUE
+
+COLOR_BEGIN  = COLOR_YELLOW
+COLOR_END    = COLOR_PURPLE
+
+def gamma_lut(correction):
+    return np.array([((i / 255.0) ** (1.0 / correction)) * 255 for i in np.arange(0, 256)]).astype("uint8")
+
+print('generating GAMMA_LUT')
+GAMMA_CORRECTIONS = [ x / 100.0 for x in range(70, 130) ]
+#[ 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.0, 1.05, 1.10, 1.15, 1.20, 1.25, 1.30, 1.35, 1.40, 1.45, 1.50 ]
+print('GAMMA_CORRECTIONS', GAMMA_CORRECTIONS)
+NO_CORRECTION = GAMMA_CORRECTIONS.index(1.0)
+GAMMA_LUT = [ gamma_lut(correction) for correction in GAMMA_CORRECTIONS ]
+print('done', len(GAMMA_LUT))
+print(GAMMA_LUT)
+
+def rgb_adjust(r, g, b):
+    return np.uint8([r, g, b])
+
+NO_COLOR_ADJUSTMENT = rgb_adjust(NO_CORRECTION, NO_CORRECTION, NO_CORRECTION)
+
+DEFAULT_COLOR_ADJUSTMENT = rgb_adjust(GAMMA_CORRECTIONS.index(1.02), GAMMA_CORRECTIONS.index(0.81), GAMMA_CORRECTIONS.index(0.98))
 
 S_STRANDS = strands(
     [
-        (384, 406, [0, 0, 0]),    # 0
-        (192, 214, [0, 0, 0]),    # 1
-        (256, 276, [0, 0, 0]),    # 2
-        (724, 704, [0, 0, 0]),    # 3
-        (658, 640, [0, 0, 0]),    # 4
-        (448, 464, [0, 0, 0]),    # 5
-        (479, 465, [0, 0, 0]),    # 6
-        (659, 671, [0, 0, 0]),    # 7
-        (223, 215, [0, 0, 0]),    # 8
-        (725, 729, [0, 0, 0])     # 9
+        (384, 406, DEFAULT_COLOR_ADJUSTMENT),    # 0
+        (192, 214, DEFAULT_COLOR_ADJUSTMENT),    # 1
+        (256, 276, DEFAULT_COLOR_ADJUSTMENT),    # 2
+        (724, 704, DEFAULT_COLOR_ADJUSTMENT),    # 3
+        (658, 640, DEFAULT_COLOR_ADJUSTMENT),    # 4
+        (448, 464, DEFAULT_COLOR_ADJUSTMENT),    # 5
+        (479, 465, DEFAULT_COLOR_ADJUSTMENT),    # 6
+        (659, 671, DEFAULT_COLOR_ADJUSTMENT),    # 7
+        (223, 215, NO_COLOR_ADJUSTMENT),         # 8
+        (725, 729, DEFAULT_COLOR_ADJUSTMENT)     # 9
     ]
 )
 
 R_STRANDS = strands(
     [
-        (128, 159, [0, 0, 0]),  # 0 (L)
-        ( 64,  95, [0, 0, 0]),  # 1
-        (320, 351, [0, 0, 0]),  # 2
-        (960, 991, [0, 0, 0]),  # 3
-        (  0,  31, [0, 0, 0]),  # 4
-        (224, 255, [0, 0, 0]),  # 5
-        (576, 607, [0, 0, 0]),  # 6
-        (480, 511, [0, 0, 0]),  # 7
-        (768, 799, [0, 0, 0]),  # 8
-        (896, 927, [0, 0, 0]),  # 9
-        (832, 863, [0, 0, 0]),  # 10pixels[strand.slice] += strand.color_adjustment
-        (512, 543, [0, 0, 0]),  # 11
-        (730, 761, [0, 0, 0]),  # 12
-        (672, 703, [0, 0, 0]),  # 13
-        (277, 308, [0, 0, 0]),  # 14
-        (407, 438, [0, 0, 0])   # 15 (R)
+        (128, 159, NO_COLOR_ADJUSTMENT),       # 0 (L)
+        ( 64,  95, NO_COLOR_ADJUSTMENT),       # 1
+        (320, 351, DEFAULT_COLOR_ADJUSTMENT),  # 2
+        (960, 991, NO_COLOR_ADJUSTMENT),       # 3
+        (  0,  31, NO_COLOR_ADJUSTMENT),       # 4
+        (224, 255, NO_COLOR_ADJUSTMENT),       # 5
+        (576, 607, NO_COLOR_ADJUSTMENT),       # 6
+        (480, 511, NO_COLOR_ADJUSTMENT),       # 7
+        (768, 799, NO_COLOR_ADJUSTMENT),       # 8
+        (896, 927, DEFAULT_COLOR_ADJUSTMENT),  # 9
+        (832, 863, NO_COLOR_ADJUSTMENT),       # 10
+        (512, 543, NO_COLOR_ADJUSTMENT),       # 11
+        (730, 761, NO_COLOR_ADJUSTMENT),       # 12
+        (672, 703, NO_COLOR_ADJUSTMENT),       # 13
+        (277, 308, DEFAULT_COLOR_ADJUSTMENT),  # 14
+        (407, 438, DEFAULT_COLOR_ADJUSTMENT)   # 15 (R)
     ]
 )
+
+print('R_STRANDS\n ', '\n  '.join([str(strand) for strand in R_STRANDS]))
+print('S_STRANDS\n ', '\n  '.join([str(strand) for strand in S_STRANDS]))
 
 ALL_STRANDS = []
 ALL_STRANDS.extend(R_STRANDS)
 ALL_STRANDS.extend(S_STRANDS)
 
-print('R_STRANDS\n ', '\n  '.join([str(strand) for strand in R_STRANDS]))
-print('S_STRANDS\n ', '\n  '.join([str(strand) for strand in S_STRANDS]))
-
+COLOR_ADJUSTED_STRANDS = [ strand for strand in ALL_STRANDS if not np.all(strand.color_adjustment == 1.0) ]
 
 NUM_PIXELS = 1024
 MAX_S_HALF = 11
 
 
 def interp_rgb(x, indexes, colors):
-    r = np.interp(x, indexes, [c[0] for c in colors])
-    g = np.interp(x, indexes, [c[1] for c in colors])
-    b = np.interp(x, indexes, [c[2] for c in colors])
-    return [r, g, b]
+    r = np.interp(x, indexes, [c[R] for c in colors])
+    g = np.interp(x, indexes, [c[G] for c in colors])
+    b = np.interp(x, indexes, [c[B] for c in colors])
+    return rgb(r, g, b)
 
 
 def iter_rgb(count, colors):
@@ -143,12 +186,12 @@ class DisplayColor(DisplayBase):
     TARGET_R = 1
     TARGET_S = 2
 
-    color_changed = QtCore.pyqtSignal(list)
-    adjustment_changed = QtCore.pyqtSignal(list)
+    color_changed = QtCore.pyqtSignal(np.ndarray)
+    adjustment_changed = QtCore.pyqtSignal(np.ndarray)
 
     def __init__(self, initial_color, initial_r_index, initial_s_index):
         super(DisplayColor, self).__init__()
-        self.__color = initial_color
+        self.__color = initial_color.copy()
         self.__r_index = initial_r_index
         self.__s_index = initial_s_index
         self.__target = self.TARGET_R
@@ -156,37 +199,50 @@ class DisplayColor(DisplayBase):
     def set_r_index(self, index):
         self.__r_index = index
         self.__target = self.TARGET_R
-        self.adjustment_changed.emit(self.get_adjust_color())
+        self.adjustment_changed.emit(self.get_adjust())
 
     def set_s_index(self, index):
         self.__s_index = index
         self.__target = self.TARGET_S
-        self.adjustment_changed.emit(self.get_adjust_color())
+        self.adjustment_changed.emit(self.get_adjust())
 
     def set_red_color(self, red):
-        self.__color[0] = red
+        self.__color[R] = red
         self.color_changed.emit(self.__color)
 
     def set_green_color(self, green):
-        self.__color[1] = green
+        self.__color[G] = green
         self.color_changed.emit(self.__color)
 
     def set_blue_color(self, blue):
-        self.__color[2] = blue
+        self.__color[B] = blue
         self.color_changed.emit(self.__color)
 
-    def set_red_adjust(self, red):
-        self.__set_adjust_color(red, 0)
+    def set_red_adjust(self, correction):
+        self.__set_adjust(correction, R)
 
-    def set_green_adjust(self, green):
-        self.__set_adjust_color(green, 1)
+    def set_green_adjust(self, correction):
+        self.__set_adjust(correction, G)
 
-    def set_blue_adjust(self, blue):
-        self.__set_adjust_color(blue, 2)
+    def set_blue_adjust(self, correction):
+        self.__set_adjust(correction, B)
 
-    def __set_adjust_color(self, color, index):
-        self.get_adjust_color()[index] = color
-        self.adjustment_changed.emit(self.get_adjust_color())
+    def __set_adjust(self, correction, index):
+
+        target_strand = self.__get_target_strand()
+
+        print('__set_adjust', target_strand.color_adjustment, index, correction)
+
+        target_strand.color_adjustment[index] = correction
+
+        if np.all(target_strand.color_adjustment == NO_CORRECTION):
+            if target_strand in COLOR_ADJUSTED_STRANDS:
+                COLOR_ADJUSTED_STRANDS.remove(target_strand)
+        else:
+            if target_strand not in COLOR_ADJUSTED_STRANDS:
+                COLOR_ADJUSTED_STRANDS.append(target_strand)
+
+        self.adjustment_changed.emit(self.get_adjust())
 
     def __get_target_strand(self):
         if self.__target == self.TARGET_S:
@@ -194,28 +250,29 @@ class DisplayColor(DisplayBase):
         else:
             return R_STRANDS[self.__r_index]
 
-    def get_adjust_color(self):
+    def get_adjust(self):
         return self.__get_target_strand().color_adjustment
 
     def set_all_off(self):
-        self.__color = [0, 0, 0]
+        self.__color[:] = COLOR_BLACK
         self.color_changed.emit(self.__color)
 
     def set_all_half(self):
-        self.__color = [128, 128, 128]
+        self.__color[:] = COLOR_GRAY
         self.color_changed.emit(self.__color)
 
     def set_all_full(self):
-        self.__color = [128, 128, 128]
+        self.__color[:] = COLOR_WHITE
         self.color_changed.emit(self.__color)
 
     def update(self, frame_time, pixels, lepton_data):
 
         pixels[:] = self.__color
 
-        strand = self.__get_target_strand()
-        pixels[strand.begin] = [244, 152, 66]
-        pixels[strand.end] = [35, 234, 21]
+        if not np.all(self.__color ==  0):
+            strand = self.__get_target_strand()
+            pixels[strand.begin] = COLOR_BEGIN
+            pixels[strand.end] = COLOR_END
 
 
 
@@ -239,34 +296,32 @@ class DisplayIndex(DisplayBase):
     def update(self, frame_time, pixels, lepton_data):
 
         r = R_STRANDS[self.__r_index]
-        pixels[r.slice] = [123, 31, 173]
-        pixels[r.begin] = [244, 152, 66]
-        pixels[r.end] = [35, 234, 21]
+        pixels[r.slice] = COLOR_GRAY
+        pixels[r.begin] = COLOR_BEGIN
+        pixels[r.end] = COLOR_END
 
         s = S_STRANDS[self.__s_index]
-        pixels[s.slice] = [123, 31, 173]
-        pixels[s.begin] = [244, 152, 66]
-        pixels[s.end] = [35, 234, 21]
+        pixels[s.slice] = COLOR_GRAY
+        pixels[s.begin] = COLOR_BEGIN
+        pixels[s.end] = COLOR_END
 
         if self.__pixel_index > 0:
-            pixels[self.__pixel_index - 1] = [128, 0, 0]
-        pixels[self.__pixel_index] = [255, 255, 255]
+            pixels[self.__pixel_index - 1] = COLOR_RED
+        pixels[self.__pixel_index] = COLOR_WHITE
         if self.__pixel_index < 1023:
-            pixels[self.__pixel_index + 1] = [0, 0, 128]
+            pixels[self.__pixel_index + 1] = COLOR_BLUE
 
 
 class DisplaySun(DisplayBase):
 
-    S_CENTER_COLOR = [255, 223, 147]
-    S_HALF_COLOR = [252, 217, 133]
-    S_EDGE_COLOR = [255, 180, 0]
+    S_CENTER_COLOR = rgb(255, 223, 147)
+    S_HALF_COLOR = rgb(252, 217, 133)
+    S_EDGE_COLOR = rgb(255, 180, 0)
     S_COLORS = [S_CENTER_COLOR, S_HALF_COLOR, S_HALF_COLOR, S_HALF_COLOR, S_EDGE_COLOR]
 
-    R_START_COLOR = [255, 180, 0]
-    R_END_COLOR = [0, 0, 0]
+    R_START_COLOR = rgb(255, 180, 0)
+    R_END_COLOR = COLOR_BLACK
     R_COLORS = [R_START_COLOR, R_END_COLOR]
-
-    ALIAS_GAMMA_ADJUSTMENT = 0.5
 
     def __init__(self, initial_speed):
         super(DisplaySun, self).__init__()
@@ -324,9 +379,9 @@ class FrameTime(object):
 
     def tick(self):
 
-        free_time = max(self.SLEEP_TIME - (time.time() - self.__last_time), 0.0)
+        free_time = self.SLEEP_TIME - (time.time() - self.__last_time)
         self.__total_free_time += free_time
-        time.sleep(free_time)
+        time.sleep(max(free_time, 0.0))
 
         current_time = time.time()
 
@@ -335,10 +390,10 @@ class FrameTime(object):
 
         self.__frame_count += 1
         display_delta_time = current_time - self.__last_display_time
-        if display_delta_time >= 5:
+        if display_delta_time >= 10:
             print(
                 'update fps', self.__frame_count / display_delta_time,
-                'avg free time', self.__total_free_time / self.__frame_count)
+                'avg free %', int((self.__total_free_time / display_delta_time) * 100))
             self.__frame_count = 0
             self.__last_display_time = current_time
             self.__total_free_time = 0.0
@@ -428,8 +483,8 @@ class UpdateThread(QtCore.QThread):
         print('update thread running')
 
         opc_buffer = np.empty([(NUM_PIXELS * 3) + self.OPC_HEADER_SIZE], dtype=np.uint8)
-        opc_buffer[0] = 0                               # channel
-        opc_buffer[1] = 0                               # command = set color
+        opc_buffer[0] = 0                          # channel
+        opc_buffer[1] = 0                          # command = set color
         opc_buffer[2] = int(NUM_PIXELS * 3 / 256)  # len hi byte
         opc_buffer[3] = NUM_PIXELS * 3 % 256       # len lo byte
 
@@ -446,9 +501,13 @@ class UpdateThread(QtCore.QThread):
             self.__display.update(frame_time, pixels, self.__lepton_frame)
 
             if self.__color_adjustment_enabled:
-                for strand in ALL_STRANDS:
-                    if strand.color_adjustment != NO_COLOR_ADJUSTMENT:
-                        pixels[strand.slice] += strand.color_adjustment
+                for strand in COLOR_ADJUSTED_STRANDS:
+                    if strand.color_adjustment[R] != NO_CORRECTION:
+                        pixels[strand.slice, R_SLICE] = GAMMA_LUT[strand.color_adjustment[R]][pixels[strand.slice, R_SLICE]]
+                    if strand.color_adjustment[G] != NO_CORRECTION:
+                        pixels[strand.slice, G_SLICE] = GAMMA_LUT[strand.color_adjustment[G]][pixels[strand.slice, G_SLICE]]
+                    if strand.color_adjustment[B] != NO_CORRECTION:
+                        pixels[strand.slice, B_SLICE] = GAMMA_LUT[strand.color_adjustment[B]][pixels[strand.slice, B_SLICE]]
 
             self.__opc_client.put_message(opc_buffer.tostring())
 
@@ -498,7 +557,7 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
         # color display
 
         self.__display_color = DisplayColor(
-            [self.redColorSpinBox.value(), self.greenColorSpinBox.value(), self.blueColorSpinBox.value()],
+            rgb(self.redColorSpinBox.value(), self.greenColorSpinBox.value(), self.blueColorSpinBox.value()),
             self.rAdjustmentSpinBox.value(),
             self.sAdjustmentSpinBox.value())
 
@@ -529,14 +588,18 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
         self.blueColorSlider.valueChanged.connect(
             lambda value: self.__display_color.set_blue_color(value))
 
-        self.redAdjustmentSpinBox.valueChanged.connect(
-            lambda value: self.__display_color.set_red_adjust(value))
+        self.config_adjustment_widgets(self.redAdjustmentDoubleSpinBox, self.redAdjustmentSlider)
+        self.config_adjustment_widgets(self.greenAdjustmentDoubleSpinBox, self.greenAdjustmentSlider)
+        self.config_adjustment_widgets(self.blueAdjustmentDoubleSpinBox, self.blueAdjustmentSlider)
 
-        self.greenAdjustmentSpinBox.valueChanged.connect(
-            lambda value: self.__display_color.set_green_adjust(value))
+        self.redAdjustmentDoubleSpinBox.valueChanged.connect(
+            lambda value: self.__display_color.set_red_adjust(GAMMA_CORRECTIONS.index(round(value, 2))))
 
-        self.blueAdjustmentSpinBox.valueChanged.connect(
-            lambda value: self.__display_color.set_blue_adjust(value))
+        self.greenAdjustmentDoubleSpinBox.valueChanged.connect(
+            lambda value: self.__display_color.set_green_adjust(GAMMA_CORRECTIONS.index(round(value, 2))))
+
+        self.blueAdjustmentDoubleSpinBox.valueChanged.connect(
+            lambda value: self.__display_color.set_blue_adjust(GAMMA_CORRECTIONS.index(round(value, 2))))
 
         self.redAdjustmentSlider.valueChanged.connect(
             lambda value: self.__display_color.set_red_adjust(value))
@@ -578,6 +641,17 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
 
         print('main window started')
 
+    def config_adjustment_widgets(self, spin_box, slider):
+        spin_box.setDecimals(2)
+        spin_box.setSingleStep(0.01)
+        spin_box.setMinimum(GAMMA_CORRECTIONS[0])
+        spin_box.setMaximum(GAMMA_CORRECTIONS[-1])
+        spin_box.setValue(1.0)
+        slider.setMinimum(0)
+        slider.setMaximum(len(GAMMA_CORRECTIONS) - 1)
+        slider.setValue(NO_CORRECTION)
+        slider.tickInterval = 5
+
     def closeEvent(self, event):
         print('main window stopping')
         self.__lepton_thread.stop()
@@ -603,20 +677,21 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
         self.imageLabel.setPixmap(pixmap)
 
     def __on_color_changed(self, color):
-        self.redColorSlider.setValue(color[0])
-        self.redColorSpinBox.setValue(color[0])
-        self.greenColorSlider.setValue(color[1])
-        self.greenColorSpinBox.setValue(color[1])
-        self.blueColorSlider.setValue(color[2])
-        self.blueColorSpinBox.setValue(color[2])
+        self.redColorSlider.setValue(color[R])
+        self.redColorSpinBox.setValue(color[R])
+        self.greenColorSlider.setValue(color[G])
+        self.greenColorSpinBox.setValue(color[G])
+        self.blueColorSlider.setValue(color[B])
+        self.blueColorSpinBox.setValue(color[B])
 
-    def __on_adjustment_changed(self, color):
-        self.redAdjustmentSlider.setValue(color[0])
-        self.redAdjustmentSpinBox.setValue(color[0])
-        self.greenAdjustmentSlider.setValue(color[1])
-        self.greenAdjustmentSpinBox.setValue(color[1])
-        self.blueAdjustmentSlider.setValue(color[2])
-        self.blueAdjustmentSpinBox.setValue(color[2])
+    def __on_adjustment_changed(self, adjustment):
+        print('__on_adjustment_changed', adjustment)
+        self.redAdjustmentSlider.setValue(adjustment[R])
+        self.redAdjustmentDoubleSpinBox.setValue(GAMMA_CORRECTIONS[adjustment[R]])
+        self.greenAdjustmentSlider.setValue(adjustment[G])
+        self.greenAdjustmentDoubleSpinBox.setValue(GAMMA_CORRECTIONS[adjustment[G]])
+        self.blueAdjustmentSlider.setValue(adjustment[B])
+        self.blueAdjustmentDoubleSpinBox.setValue(GAMMA_CORRECTIONS[adjustment[B]])
 
 
 def main():
