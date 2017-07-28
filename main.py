@@ -10,23 +10,18 @@ import multiprocessing
 import subprocess
 import sys
 import time
+import traceback
 
-# fadecandy
+import cv2
+import numpy as np
 import opc
+import ui
+import yaml
 
-# qt
+from pylepton import Lepton
 from PyQt4 import QtGui, QtCore
 
-# project
-import ui
-
-# lepton
-import numpy as np
-from pylepton import Lepton
-
-# image processsing
-import cv2
-
+import config_util
 
 class DisplayBase(QtCore.QObject):
 
@@ -96,11 +91,8 @@ def gamma_lut(correction):
 print('generating GAMMA_LUT')
 GAMMA_CORRECTIONS = [ x / 100.0 for x in range(70, 130) ]
 #[ 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.0, 1.05, 1.10, 1.15, 1.20, 1.25, 1.30, 1.35, 1.40, 1.45, 1.50 ]
-print('GAMMA_CORRECTIONS', GAMMA_CORRECTIONS)
 NO_CORRECTION = GAMMA_CORRECTIONS.index(1.0)
 GAMMA_LUT = [ gamma_lut(correction) for correction in GAMMA_CORRECTIONS ]
-print('done', len(GAMMA_LUT))
-print(GAMMA_LUT)
 
 def rgb_adjust(r, g, b):
     return np.uint8([r, g, b])
@@ -314,31 +306,36 @@ class DisplayIndex(DisplayBase):
 
 class DisplaySun(DisplayBase):
 
-    S_CENTER_COLOR = rgb(255, 223, 147)
-    S_HALF_COLOR = rgb(252, 217, 133)
-    S_EDGE_COLOR = rgb(255, 180, 0)
-    S_COLORS = [S_CENTER_COLOR, S_HALF_COLOR, S_HALF_COLOR, S_HALF_COLOR, S_EDGE_COLOR]
-
-    R_START_COLOR = rgb(255, 180, 0)
-    R_END_COLOR = COLOR_BLACK
-    R_COLORS = [R_START_COLOR, R_END_COLOR]
-
-    def __init__(self, initial_speed):
+    def __init__(self):
         super(DisplaySun, self).__init__()
         self.__frame_number = 0
+        self.__configured = False
+
+    def configure(self, config):
+
+        config = config['sun']
+
+        self.__speed = config['speed']
+
         self.__pixels = np.zeros([NUM_PIXELS, 3], dtype=np.uint8)
-        self.__speed = initial_speed
 
         for r in R_STRANDS:
-            self.__pixels[r.slice] = iter_rgb(r.length, self.R_COLORS)
+            self.__pixels[r.slice] = iter_rgb(r.length, config['R_COLORS'])
 
         for s in S_STRANDS:
-            self.__pixels[s.slice] = iter_rgb_s_dist(s, self.S_COLORS)
+            self.__pixels[s.slice] = iter_rgb_s_dist(s, config['S_COLORS'])
+
+        self.__configured = True
+
 
     def set_speed(self, speed):
         self.__speed = speed
 
     def update(self, frame_time, pixels, lepton_data):
+
+        if not self.__configured:
+            return
+
         pixels[:] = self.__pixels
 
         for r in R_STRANDS:
@@ -524,16 +521,15 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
 
         self.setupUi(self)
 
+        self.__configured = []
+
         # buttons
         self.performFFCButton.clicked.connect(self.__perform_ffc)
 
         # sun display
 
-        self.__display_sun = DisplaySun(
-            self.sunSpeedSpinBox.value())
-
-        self.sunSpeedSpinBox.valueChanged.connect(
-            lambda value: self.__display_sun.set_speed(value))
+        self.__display_sun = DisplaySun()
+        self.__configured.append(self.__display_sun)
 
         # index display
 
@@ -639,7 +635,57 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
         self.__lepton_thread.lepton_frame_captured.connect(self.__lepton_frame_captured)
         self.__lepton_thread.start()
 
+        # config
+
+        self.loadButton.clicked.connect(self.__load_config)
+        self.saveButton.clicked.connect(self.__save_config)
+        self.pathEdit.setText('/home/pi/pyhugm/config.yaml')
+        self.__load_config()
+
         print('main window started')
+
+
+    def __apply_config(self, text):
+
+        config = yaml.load(text)
+
+        config = config_util.process_config(config)
+
+        for entry in self.__configured:
+            entry.configure(config)
+
+
+    def __save_config(self):
+
+        try:
+
+            text = str(self.configTextEdit.document().toPlainText())
+
+            self.__apply_config(text)
+
+            with open(self.pathEdit.text(), 'w') as f:
+                f.write(text)
+
+        except Exception as e:
+            traceback.print_exc()
+            QtGui.QMessageBox.critical(self, 'Could Not Save Config', e.message)
+
+
+    def __load_config(self):
+
+        try:
+
+            with open(self.pathEdit.text(), 'r') as f:
+                text = f.read()
+
+            self.configTextEdit.document().setPlainText(text)
+
+            self.__apply_config(text)
+
+        except Exception as e:
+            traceback.print_exc()
+            QtGui.QMessageBox.critical(self, 'Could Not Load Config', e.message)
+
 
     def config_adjustment_widgets(self, spin_box, slider):
         spin_box.setDecimals(2)
