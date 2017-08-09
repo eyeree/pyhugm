@@ -13,6 +13,8 @@ EASE_LINEAR:    0
 EASE_IN_QUAD:   1
 EASE_OUT_QUAD:  2
 
+s_hw_ratio: 1.0
+
 sun:
 
     speed: 1

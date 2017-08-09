@@ -3,10 +3,12 @@ from __future__ import division
 
 print('loading...')
 
-# python
 import collections
+import datetime
 import math
 import multiprocessing
+import os
+import shutil
 import subprocess
 import sys
 import time
@@ -23,44 +25,8 @@ from PyQt4 import QtGui, QtCore
 
 import config_util
 
-class DisplayBase(QtCore.QObject):
 
-    def __init__(self):
-        super(DisplayBase, self).__init__()
-
-
-Strand = collections.namedtuple('Strand', ['index', 'begin', 'end', 'length', 'slice', 'color_adjustment'])
-
-
-def strands(end_point_list):
-
-    result = []
-
-    for end_points in end_point_list:
-
-        index = len(result)
-
-        begin, end, color_adjustment = end_points
-
-        if begin < end:
-            length = end - begin + 1
-            slice_ = slice(begin, end + 1, 1)
-        else:
-            length = begin - end + 1
-            slice_ = slice(begin, end - 1, -1)
-
-        result.append(
-            Strand(
-                index,
-                begin,
-                end,
-                length,
-                slice_,
-                color_adjustment.copy()
-            )
-        )
-
-    return result
+#### Color Stuff
 
 R = 0
 G = 1
@@ -101,7 +67,86 @@ NO_COLOR_ADJUSTMENT = rgb_adjust(NO_CORRECTION, NO_CORRECTION, NO_CORRECTION)
 
 DEFAULT_COLOR_ADJUSTMENT = rgb_adjust(GAMMA_CORRECTIONS.index(1.02), GAMMA_CORRECTIONS.index(0.81), GAMMA_CORRECTIONS.index(0.98))
 
-S_STRANDS = strands(
+
+#### Pixel Stuff
+
+NUM_PIXELS = 1024
+
+S_COUNT = 10
+R_COUNT = 16
+
+S_HALF = 12
+S_CUT = 1.0 + (1.0 / S_HALF)
+
+R_LEN = 32
+R_MIN = 0
+R_MAX = R_LEN - 1
+
+S_WIDTH = 14.5 / S_HALF
+S_HEIGHT = 14.0 / S_COUNT
+
+S_WH_RATIO = S_HEIGHT / S_WIDTH
+print('S_WH_RATIO', S_WH_RATIO, S_WIDTH, S_HEIGHT, S_HALF, S_CUT)
+
+Strand = collections.namedtuple('Strand',
+    [
+        'index',
+        'begin',
+        'end',
+        'length',
+        'slice',
+        'color_adjustment',
+        'distance',
+        'inverse_distance'
+    ]
+)
+
+
+def strands(distance_function, end_point_list):
+
+    result = []
+
+    for end_points in end_point_list:
+
+        index = len(result)
+
+        begin, end, color_adjustment = end_points
+
+        if begin < end:
+            length = end - begin + 1
+            slice_ = slice(begin, end + 1, 1)
+        else:
+            length = begin - end + 1
+            slice_ = slice(begin, end - 1, -1)
+
+        distance = distance_function(index, length)
+        inverse_distance = 1.0 - distance
+
+        result.append(
+            Strand(
+                index,
+                begin,
+                end,
+                length,
+                slice_,
+                color_adjustment.copy(),
+                distance,
+                inverse_distance
+            )
+        )
+
+    return result
+
+def make_s_dist(index, length):
+    y = float(index + (S_HALF - S_COUNT)) * 1.025
+    half = int((length - 1) / 2)
+    result = np.float16([math.hypot(x, y) / (S_HALF - 1) for x in range(-half, half + 1)])
+    return result
+
+def make_r_dist(index, length):
+    return np.float16([ i / (length - 1) for i in range(0, length) ])
+
+S_STRANDS = strands(make_s_dist,
     [
         (384, 406, DEFAULT_COLOR_ADJUSTMENT),    # 0
         (192, 214, DEFAULT_COLOR_ADJUSTMENT),    # 1
@@ -116,7 +161,7 @@ S_STRANDS = strands(
     ]
 )
 
-R_STRANDS = strands(
+R_STRANDS = strands(make_r_dist,
     [
         (128, 159, NO_COLOR_ADJUSTMENT),       # 0 (L)
         ( 64,  95, NO_COLOR_ADJUSTMENT),       # 1
@@ -146,31 +191,139 @@ ALL_STRANDS.extend(S_STRANDS)
 
 COLOR_ADJUSTED_STRANDS = [ strand for strand in ALL_STRANDS if not np.all(strand.color_adjustment == 1.0) ]
 
-NUM_PIXELS = 1024
-MAX_S_HALF = 11
+
+def diff_colors(start_color, end_color):
+    return np.int16(end_color) - start_color
 
 
-def interp_rgb(x, indexes, colors):
-    r = np.interp(x, indexes, [c[R] for c in colors])
-    g = np.interp(x, indexes, [c[G] for c in colors])
-    b = np.interp(x, indexes, [c[B] for c in colors])
-    return rgb(r, g, b)
+def interp_color_fn(start_color, end_color, ease = lambda x : x):
+
+    diff_color = diff_colors(start_color, end_color)
+
+    #print('interp_color_fn', start_color, end_color, diff_color, ease)
+
+    def interp_color(i):
+        result = np.clip(start_color + diff_color * ease(i), 0, 255, np.empty(3, dtype=np.uint8))
+        #print('interp_color', i, ease(i), start_color, end_color, result)
+        return result
+
+    return interp_color
 
 
-def iter_rgb(count, colors):
-    indexes = np.linspace(0, count - 1, len(colors))
-    return [interp_rgb(x, indexes, colors) for x in range(0, count)]
+def ubound_color_fn(fn, ubound, end_color, ubound_color, ease = lambda x: x, lbound = 1.0):
+
+    #print('ubound_color_fn', ubound, end_color, ubound_color, ease, lbound)
+
+    interp_ubound_color = interp_color_fn(end_color, ubound_color, ease)
+
+    def apply_ubound_color(i):
+        if i <= lbound:
+            #print('ubound_color i <= lbound', i, lbound, fn(i))
+            return fn(i)
+        elif i >= ubound:
+            #print('ubound_color i >= ubound', i, ubound, ubound_color)
+            return ubound_color
+        else:
+            #print('ubound_color', i, lbound, ubound, 1.0 - ((i - lbound) / (ubound - lbound)), (i - lbound) / (ubound - lbound), i - lbound, ubound - lbound)
+            return interp_ubound_color((i - lbound) / (ubound - lbound))
+
+    return apply_ubound_color
 
 
-def iter_rgb_s_dist(s, colors):
+def lbound_color_fn(fn, lbound, lbound_color, start_color, ease = lambda x: x, ubound = 0.0):
 
-    indexes = np.linspace(-MAX_S_HALF, MAX_S_HALF, len(colors))
+    interp_lbound_color = interp_color_fn(lbound_color, start_color, ease)
 
-    y = s.index + 2  # offset for rows one less than MAX_S_HALF
+    def apply_lbound_color(i):
+        if i >= ubound:
+            return fn(i)
+        elif i <= lbound:
+            return lbound_color
+        else:
+            return interp_lbound_color(1.0 - ((i - ubound) / (ubound - lbound)))
 
-    half = int((s.length - 1) / 2)
+    return apply_lbound_color
 
-    return [interp_rgb(math.hypot(x, y), indexes, colors) for x in range(-half, half + 1)]
+
+def easing_curve_fn(easing_curve_type):
+    easing_curve = QtCore.QEasingCurve(easing_curve_type)
+    def ease(i):
+        return easing_curve.valueForProgress(i)
+    return ease
+
+
+class DisplayBase(QtCore.QObject):
+
+    def __init__(self):
+        super(DisplayBase, self).__init__()
+
+
+class DisplaySun(DisplayBase):
+
+
+    def __init__(self):
+        super(DisplaySun, self).__init__()
+        self.__frame_number = 0
+        self.__configured = False
+
+
+    def configure(self, config):
+
+        config = config['sun']
+
+        self.__speed = config['speed']
+
+        pixels = np.zeros([NUM_PIXELS, 3], dtype=np.uint8)
+
+        r_ease = easing_curve_fn(config['r_ease_type'])
+        r_start_color = config['r_start_color']
+        r_end_color = config['r_end_color']
+        r_compute = interp_color_fn(r_start_color, r_end_color, r_ease)
+        r_first = R_STRANDS[0]
+        pixels[r_first.slice] = [ r_compute(i) for i in r_first.distance ]
+        for r in R_STRANDS[1:]: pixels[r.slice] = pixels[r_first.slice]
+
+        s_ease = easing_curve_fn(config['s_ease_type'])
+        s_start_color = config['s_start_color']
+        s_end_color = config['s_end_color']
+        s_compute = ubound_color_fn(
+            interp_color_fn(s_start_color, s_end_color, s_ease),
+            S_CUT, s_end_color, COLOR_BLACK
+        )
+        for s in S_STRANDS:
+            pixels[s.slice] = [ s_compute(i) for i in s.distance ]
+            print('s_strand', s.index, pixels[s.slice])
+
+        self.__pixels = pixels
+        self.__configured = True
+
+
+    def set_speed(self, speed):
+        self.__speed = speed
+
+
+    def update(self, frame_time, pixels, lepton_data):
+
+        if not self.__configured:
+            return
+
+        pixels[:] = self.__pixels
+
+        for r in R_STRANDS:
+            for i in range(int(self.__frame_number / 4), r.length, int(r.length / 4)):
+
+                p = r.begin + (i - 1) if i > 0 else r.end
+                pixels[p] *= 0.87
+
+                p = r.begin + i
+                pixels[p] *= 0.83
+
+                p = r.begin + (i + 1) if i < 31 else r.begin
+                pixels[p] *= 0.87
+
+        self.__frame_number += self.__speed
+        if self.__frame_number >= 32:
+            self.__frame_number = 0
 
 
 class DisplayColor(DisplayBase):
@@ -304,56 +457,6 @@ class DisplayIndex(DisplayBase):
             pixels[self.__pixel_index + 1] = COLOR_BLUE
 
 
-class DisplaySun(DisplayBase):
-
-    def __init__(self):
-        super(DisplaySun, self).__init__()
-        self.__frame_number = 0
-        self.__configured = False
-
-    def configure(self, config):
-
-        config = config['sun']
-
-        self.__speed = config['speed']
-
-        self.__pixels = np.zeros([NUM_PIXELS, 3], dtype=np.uint8)
-
-        for r in R_STRANDS:
-            self.__pixels[r.slice] = iter_rgb(r.length, config['R_COLORS'])
-
-        for s in S_STRANDS:
-            self.__pixels[s.slice] = iter_rgb_s_dist(s, config['S_COLORS'])
-
-        self.__configured = True
-
-
-    def set_speed(self, speed):
-        self.__speed = speed
-
-    def update(self, frame_time, pixels, lepton_data):
-
-        if not self.__configured:
-            return
-
-        pixels[:] = self.__pixels
-
-        for r in R_STRANDS:
-            for i in range(int(self.__frame_number / 4), r.length, int(r.length / 4)):
-
-                p = r.begin + (i - 1) if i > 0 else r.end
-                pixels[p] *= 0.87
-
-                p = r.begin + i
-                pixels[p] *= 0.83
-
-                p = r.begin + (i + 1) if i < 31 else r.begin
-                pixels[p] *= 0.87
-
-        self.__frame_number += self.__speed
-        if self.__frame_number >= 32:
-            self.__frame_number = 0
-
 
 class FrameTime(object):
 
@@ -387,10 +490,11 @@ class FrameTime(object):
 
         self.__frame_count += 1
         display_delta_time = current_time - self.__last_display_time
-        if display_delta_time >= 10:
-            print(
-                'update fps', self.__frame_count / display_delta_time,
-                'avg free %', int((self.__total_free_time / display_delta_time) * 100))
+        if display_delta_time >= 60:
+            if False:
+                print(
+                    'update fps', self.__frame_count / display_delta_time,
+                    'avg free %', int((self.__total_free_time / display_delta_time) * 100))
             self.__frame_count = 0
             self.__last_display_time = current_time
             self.__total_free_time = 0.0
@@ -639,13 +743,16 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
 
         self.loadButton.clicked.connect(self.__load_config)
         self.saveButton.clicked.connect(self.__save_config)
+        self.editColorButton.clicked.connect(self.__edit_color)
         self.pathEdit.setText('/home/pi/pyhugm/config.yaml')
         self.__load_config()
 
         print('main window started')
 
 
-    def __apply_config(self, text):
+    def __apply_config(self):
+
+        text = str(self.configTextEdit.document().toPlainText())
 
         config = yaml.load(text)
 
@@ -654,33 +761,84 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
         for entry in self.__configured:
             entry.configure(config)
 
+        return text
+
 
     def __save_config(self):
 
         try:
 
-            text = str(self.configTextEdit.document().toPlainText())
+            text = self.__apply_config()
 
-            self.__apply_config(text)
+            old_name = str(self.pathEdit.text())
+            new_name = 'config {}.yaml'.format(str(datetime.datetime.now()))
+            new_path = os.path.join(os.path.dirname(old_name), 'backup', new_name)
+            print('renaming {} to {}'.format(old_name, new_name))
+            shutil.move(old_name, new_path)
 
-            with open(self.pathEdit.text(), 'w') as f:
+            with open(old_name, 'w') as f:
                 f.write(text)
+                print('saved', old_name)
 
         except Exception as e:
             traceback.print_exc()
             QtGui.QMessageBox.critical(self, 'Could Not Save Config', e.message)
 
 
+    def __edit_color(self):
+
+        origional_text = str(self.configTextEdit.textCursor().selectedText())
+        initial_color_parts = [ int(part.strip()) for part in origional_text.split(',') ]
+        initial_color = QtGui.QColor(initial_color_parts[0], initial_color_parts[1], initial_color_parts[2])
+        colorDialog = QtGui.QColorDialog(initial_color, self)
+
+        def update_config(text):
+            cursor = self.configTextEdit.textCursor()
+            old_anchor= cursor.anchor()
+            old_position= cursor.position()
+            cursor.insertText(text)
+            if old_anchor < old_position:
+                new_anchor = old_anchor
+                new_position = cursor.position()
+            else:
+                new_anchor = cursor.position()
+                new_position = old_position
+            cursor.setPosition(new_anchor, QtGui.QTextCursor.MoveAnchor)
+            cursor.setPosition(new_position, QtGui.QTextCursor.KeepAnchor)
+            self.configTextEdit.setTextCursor(cursor)
+            self.__apply_config()
+
+        def color_changed(color):
+            text = '{}, {}, {}'.format(color.red(), color.green(), color.blue())
+            update_config(text)
+
+        def color_selected(color):
+            colorDialog.close()
+            color_changed(color)
+            self.__save_config()
+
+        def color_rejected():
+            update_config(origional_text)
+            colorDialog.close()
+
+        colorDialog.currentColorChanged.connect(color_changed)
+        colorDialog.colorSelected.connect(color_selected)
+        colorDialog.rejected.connect(color_rejected)
+        colorDialog .open()
+
+
     def __load_config(self):
 
         try:
+
+            print('loading', self.pathEdit.text())
 
             with open(self.pathEdit.text(), 'r') as f:
                 text = f.read()
 
             self.configTextEdit.document().setPlainText(text)
 
-            self.__apply_config(text)
+            self.__apply_config()
 
         except Exception as e:
             traceback.print_exc()

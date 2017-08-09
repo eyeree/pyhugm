@@ -18,7 +18,7 @@ sun:
     speed: 1
 
     r_ease_type: EASE_LINEAR
-    s_ease_type: EASE_IN_QUAD
+    s_ease_type: EASE_OUT_QUAD
 
     END_COLOR: 255, 180, 0
 
