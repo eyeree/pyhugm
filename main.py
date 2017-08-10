@@ -8,11 +8,13 @@ import datetime
 import math
 import multiprocessing
 import os
+import random
 import shutil
 import subprocess
 import sys
 import time
 import traceback
+import threading
 
 import cv2
 import numpy as np
@@ -182,14 +184,20 @@ R_STRANDS = strands(make_r_dist,
     ]
 )
 
-print('R_STRANDS\n ', '\n  '.join([str(strand) for strand in R_STRANDS]))
-print('S_STRANDS\n ', '\n  '.join([str(strand) for strand in S_STRANDS]))
+#print('R_STRANDS\n ', '\n  '.join([str(strand) for strand in R_STRANDS]))
+#print('S_STRANDS\n ', '\n  '.join([str(strand) for strand in S_STRANDS]))
 
 ALL_STRANDS = []
 ALL_STRANDS.extend(R_STRANDS)
 ALL_STRANDS.extend(S_STRANDS)
 
 COLOR_ADJUSTED_STRANDS = [ strand for strand in ALL_STRANDS if not np.all(strand.color_adjustment == 1.0) ]
+
+PIXEL_DIST = np.zeros(NUM_PIXELS, dtype=np.float16)
+PIXEL_DIST_INVERSE = np.zeros(NUM_PIXELS, dtype=np.float16)
+for strand in ALL_STRANDS:
+    PIXEL_DIST[strand.slice] = strand.distance
+    PIXEL_DIST_INVERSE[strand.slice] = strand.inverse_distance
 
 
 def diff_colors(start_color, end_color):
@@ -252,78 +260,268 @@ def easing_curve_fn(easing_curve_type):
     return ease
 
 
+MIN_COLOR_SUM = 16
+MAX_COLOR_SUM = (255 - MIN_COLOR_SUM) * 3
+MIN_COLOR_DELTA = 16
+
+def random_color(other_than = None):
+    for i in range(1,10):
+        r = random.randint(0, 255)
+        g = random.randint(0, 255)
+        b = random.randint(0, 255)
+        s = r + g + b
+        if s >= MIN_COLOR_SUM and s <= MAX_COLOR_SUM:
+            if other_than is not None:
+                count = 0
+                count += 1 if abs(other_than[R] - r) > MIN_COLOR_DELTA else 0
+                count += 2 if abs(other_than[G] - g) > MIN_COLOR_DELTA else 0
+                count += 3 if abs(other_than[B] - b) > MIN_COLOR_DELTA else 0
+                if count >= 2:
+                    break
+                print('rejected count', count, r, g, b, other_than)
+            else:
+                break
+        print('rejected sum', s, r, g, b)
+    return rgb(r, g, b)
+
+
 class DisplayBase(QtCore.QObject):
 
     def __init__(self):
         super(DisplayBase, self).__init__()
 
 
-class DisplaySun(DisplayBase):
+def identity(x):
+    return x
+
+
+class ConfiguredDisplay(DisplayBase):
+
+    PICK_NEW_DISPLAY_DELTA = 3
+
+    MODE_SHOW_NORMAL      = 0
+    MODE_NORMAL_TO_RANDOM = 1
+    MODE_SHOW_RANDOM      = 2
+    MODE_RANDOM_TO_NORMAL = 3
+    MODE_RANDOM_TO_RANDOM = 4
+
+    MODE_DURATION = {
+        MODE_SHOW_NORMAL:      5,
+        MODE_NORMAL_TO_RANDOM: 10,
+        MODE_SHOW_RANDOM:      2,
+        MODE_RANDOM_TO_NORMAL: 5,
+        MODE_RANDOM_TO_RANDOM: 2
+    }
 
 
     def __init__(self):
-        super(DisplaySun, self).__init__()
-        self.__frame_number = 0
-        self.__configured = False
+        super(ConfiguredDisplay, self).__init__()
+
+        self.__mode_change_time = 0
+        self.__mode_start_time = 0
+        self.__mode = self.MODE_SHOW_NORMAL
+
+        self.__normal_sun_pixels = self.__make_sun_pixels(center_color = rgb(255, 223, 147), edge_color = rgb(255, 180, 0))
+        self.__from_pixels = self.__normal_sun_pixels
+        self.__make_random_sun_pixels()
+
+        self.__trans_choices = [
+            (self.trans_blend, self.trans_blend_prepare),
+            (self.trans_push, self.trans_push_prepare),
+            (self.trans_pull, self.trans_pull_prepare),
+            (self.trans_noise, self.trans_noise_prepare)
+        ]
+        self.__trans = self.__trans_choices[0][0]
+        self.__trans_prepare = self.__trans_choices[0][1]
 
 
-    def configure(self, config):
+    def __make_random_sun_pixels(self):
+        self.__center_color = random_color()
+        self.__edge_color = random_color(other_than = self.__center_color)
+        self.__make_next_sun_pixels()
 
-        config = config['sun']
 
-        self.__speed = config['speed']
+    def __make_next_sun_pixels(self):
+        self.__to_pixels = self.__make_sun_pixels(self.__center_color, self.__edge_color)
+        self.__pick_next_trans()
+        self.__trans_prepare()
+
+
+    def __make_sun_pixels(self, center_color, edge_color):
 
         pixels = np.zeros([NUM_PIXELS, 3], dtype=np.uint8)
 
-        r_ease = easing_curve_fn(config['r_ease_type'])
-        r_start_color = config['r_start_color']
-        r_end_color = config['r_end_color']
+        r_ease = easing_curve_fn(QtCore.QEasingCurve.Linear)
+        r_start_color = edge_color
+        r_end_color = COLOR_BLACK
         r_compute = interp_color_fn(r_start_color, r_end_color, r_ease)
         r_first = R_STRANDS[0]
         pixels[r_first.slice] = [ r_compute(i) for i in r_first.distance ]
         for r in R_STRANDS[1:]: pixels[r.slice] = pixels[r_first.slice]
 
-        s_ease = easing_curve_fn(config['s_ease_type'])
-        s_start_color = config['s_start_color']
-        s_end_color = config['s_end_color']
+        s_ease = easing_curve_fn(QtCore.QEasingCurve.InQuad)
+        s_start_color = center_color
+        s_end_color = edge_color
         s_compute = ubound_color_fn(
             interp_color_fn(s_start_color, s_end_color, s_ease),
             S_CUT, s_end_color, COLOR_BLACK
         )
         for s in S_STRANDS:
             pixels[s.slice] = [ s_compute(i) for i in s.distance ]
-            print('s_strand', s.index, pixels[s.slice])
 
-        self.__pixels = pixels
-        self.__configured = True
+        return pixels
 
 
-    def set_speed(self, speed):
-        self.__speed = speed
+    def __set_mode(self, frame_time, mode):
+        self.__mode = mode
+        self.__mode_change_time = frame_time.current + self.MODE_DURATION[mode]
+        self.__mode_start_time = frame_time.current
 
 
     def update(self, frame_time, pixels, lepton_data):
 
-        if not self.__configured:
-            return
+        if self.__mode == self.MODE_SHOW_NORMAL:
 
+            pixels[:] = self.__normal_sun_pixels
+
+            if frame_time.current >= self.__mode_change_time:
+                self.__set_mode(frame_time, self.MODE_NORMAL_TO_RANDOM)
+
+        elif self.__mode == self.MODE_SHOW_RANDOM:
+
+            pixels[:] = self.__from_pixels
+
+            if frame_time.current >= self.__mode_change_time:
+                self.__set_mode(frame_time, self.__next_mode)
+
+        else:
+
+            percent = (frame_time.current - self.__mode_start_time) / (self.__mode_change_time - self.__mode_start_time)
+
+            self.__trans[self.__trans_type](percent, pixels)
+
+            if frame_time.current >= self.__mode_change_time:
+                self.__from_pixels = self.__to_pixels
+                if self.__mode == self.MODE_NORMAL_TO_RANDOM or self.__mode == self.MODE_RANDOM_TO_RANDOM:
+                    self.__set_mode(frame_time, self.MODE_SHOW_RANDOM)
+                    self.__pick_next_mode()
+                    self.__pick_next_trans()
+                else:
+                    self.__set_mode(frame_time, self.MODE_SHOW_NORMAL)
+                    threading.Thread(target=self.__make_random_sun_pixels).start()
+
+
+    def pick_next_mode(self):
+
+        roll = random.randint(0, 99)
+        if roll < 25:   #  0 - 24
+
+            print('normal')
+
+            self.__next_mode = self.MODE_RANDOM_TO_NORMAL
+            self.__to_pixels = self.__normal_sun_pixels
+            self.__pick_next_trans()
+
+        elif roll < 50: # 25 - 49
+
+            print('random')
+
+            self.__next_mode = self.MODE_RANDOM_TO_RANDOM
+            threading.Thread(target=self.__make_random_sun_pixels).start()
+
+        elif roll < 75: # 50 - 74
+
+            print('pulling')
+
+            self.__next_mode = self.MODE_RANDOM_TO_RANDOM
+
+            self.__center_color = self.__edge_color
+            self.__edge_color = random_color(other_than = self.__center_color)
+            self.__next_mode = self.MODE_RANDOM_TO_RANDOM
+
+            threading.Thread(target=self.__make_next_sun_pixels).start()
+
+        else:          # 75 - 99
+
+            print('pushing')
+
+            self.__next_mode = self.MODE_RANDOM_TO_RANDOM
+
+            self.__edge_color = self.__center_color
+            self.__center_color = random_color(other_than = self.__edge_color)
+            self.__next_mode = self.MODE_RANDOM_TO_RANDOM
+
+            threading.Thread(target=self.__make_next_sun_pixels).start()
+
+
+    def pick_next_trans(self):
+        choice = random.choice(self.__trans_choices)
+        self.__trans = choice[0]
+        self.__trans_prepare = choice[1]
+
+
+    def diff_pixels(self):
+        self.__pixel_diffs = np.int16(self.__to_pixels) - self.__from_pixels
+
+
+    def trans_blend_prepare(self):
+        self.diff_pixels()
+
+
+    def trans_blend(self, percent, pixels):
+        np.clip(
+            self.__from_pixels + (self.__pixel_diffs * percent),
+            0,
+            255,
+            pixels
+        )
+
+
+    def trans_push_prepare(self):
+        pass
+
+
+    def trans_push(self, percent, pixels):
+
+
+
+        if percent < 33:
+            # push s
+        else:
+            # push r
+
+
+class DisplaySun(DisplayBase):
+
+
+    def __init__(self, center_color = rgb(255, 223, 147), edge_color = rgb(255, 180, 0)):
+        super(DisplaySun, self).__init__()
+
+        pixels = np.zeros([NUM_PIXELS, 3], dtype=np.uint8)
+
+        r_ease = easing_curve_fn(QtCore.QEasingCurve.Linear)
+        r_start_color = edge_color
+        r_end_color = COLOR_BLACK
+        r_compute = interp_color_fn(r_start_color, r_end_color, r_ease)
+        r_first = R_STRANDS[0]
+        pixels[r_first.slice] = [ r_compute(i) for i in r_first.distance ]
+        for r in R_STRANDS[1:]: pixels[r.slice] = pixels[r_first.slice]
+
+        s_ease = easing_curve_fn(QtCore.QEasingCurve.InQuad)
+        s_start_color = center_color
+        s_end_color = edge_color
+        s_compute = ubound_color_fn(
+            interp_color_fn(s_start_color, s_end_color, s_ease),
+            S_CUT, s_end_color, COLOR_BLACK
+        )
+        for s in S_STRANDS:
+            pixels[s.slice] = [ s_compute(i) for i in s.distance ]
+
+        self.__pixels = pixels
+
+
+    def update(self, frame_time, pixels, lepton_data):
         pixels[:] = self.__pixels
-
-        for r in R_STRANDS:
-            for i in range(int(self.__frame_number / 4), r.length, int(r.length / 4)):
-
-                p = r.begin + (i - 1) if i > 0 else r.end
-                pixels[p] *= 0.87
-
-                p = r.begin + i
-                pixels[p] *= 0.83
-
-                p = r.begin + (i + 1) if i < 31 else r.begin
-                pixels[p] *= 0.87
-
-        self.__frame_number += self.__speed
-        if self.__frame_number >= 32:
-            self.__frame_number = 0
 
 
 class DisplayColor(DisplayBase):
@@ -460,7 +658,7 @@ class DisplayIndex(DisplayBase):
 
 class FrameTime(object):
 
-    SLEEP_TIME = 1.0 / 61.0
+    SLEEP_TIME = 1.0 / 30.0
 
     def __init__(self):
         self.__last_time = time.time()
@@ -490,8 +688,8 @@ class FrameTime(object):
 
         self.__frame_count += 1
         display_delta_time = current_time - self.__last_display_time
-        if display_delta_time >= 60:
-            if False:
+        if display_delta_time >= 10:
+            if True:
                 print(
                     'update fps', self.__frame_count / display_delta_time,
                     'avg free %', int((self.__total_free_time / display_delta_time) * 100))
@@ -625,15 +823,12 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
 
         self.setupUi(self)
 
-        self.__configured = []
-
         # buttons
         self.performFFCButton.clicked.connect(self.__perform_ffc)
 
-        # sun display
+        # configured display
 
-        self.__display_sun = DisplaySun()
-        self.__configured.append(self.__display_sun)
+        self.__configured_display = ConfiguredDisplay()
 
         # index display
 
@@ -726,7 +921,7 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
             self.__on_adjustment_changed)
 
         # tool box
-        self.__tool_box_displays = [self.__display_sun, self.__display_color, self.__display_index]
+        self.__tool_box_displays = [self.__configured_display, self.__display_color, self.__display_index]
         self.toolBox.currentChanged.connect(
             lambda index: self.__update_thread.set_display(self.__tool_box_displays[index]))
 
@@ -745,7 +940,7 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
         self.saveButton.clicked.connect(self.__save_config)
         self.editColorButton.clicked.connect(self.__edit_color)
         self.pathEdit.setText('/home/pi/pyhugm/config.yaml')
-        self.__load_config()
+        #self.__load_config()
 
         print('main window started')
 
@@ -755,11 +950,8 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
         text = str(self.configTextEdit.document().toPlainText())
 
         config = yaml.load(text)
-
         config = config_util.process_config(config)
-
-        for entry in self.__configured:
-            entry.configure(config)
+        self.__configured_display.configure(config)
 
         return text
 

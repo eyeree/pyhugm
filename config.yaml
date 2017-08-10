@@ -1,29 +1,43 @@
 
-COLOR_BLACK:    0, 0, 0
-COLOR_WHITE:    0, 0, 0
-COLOR_GRAY:     128, 128, 128
-COLOR_RED:      255, 0, 0
-COLOR_GREEN:    0, 255, 0
-COLOR_BLUE:     0, 0, 255
-COLOR_PURPLE:   255, 0, 255
-COLOR_YELLOW:   0, 255, 255
-COLOR_ORANGE:   255, 255, 0
+colors:
 
-EASE_LINEAR:    0
-EASE_IN_QUAD:   1
-EASE_OUT_QUAD:  2
+    - &COLOR_BLACK    0, 0, 0
+    - &COLOR_WHITE    0, 0, 0
+    - &COLOR_GRAY     128, 128, 128
+    - &COLOR_RED      255, 0, 0
+    - &COLOR_GREEN    0, 255, 0
+    - &COLOR_BLUE     0, 0, 255
+    - &COLOR_PURPLE   255, 0, 255
+    - &COLOR_YELLOW   0, 255, 255
+    - &COLOR_ORANGE   255, 255, 0
 
-sun:
 
-    speed: 1
+ease curves:
 
-    r_ease_type: EASE_LINEAR
-    s_ease_type: EASE_IN_QUAD
+    - &EASE_LINEAR    0
+    - &EASE_IN_QUAD   1
+    - &EASE_OUT_QUAD  2
 
-    END_COLOR: 255, 180, 0
 
-    s_start_color: 255, 223, 147
-    s_end_color: END_COLOR
+display types:
 
-    r_start_color: END_COLOR
-    r_end_color: COLOR_BLACK
+    - &SUN
+
+        r_ease_type: *EASE_LINEAR
+        s_ease_type: *EASE_IN_QUAD
+
+        r_start_color: $s_end_color
+        r_end_color: *COLOR_BLACK
+
+display:
+
+    normal sun: !sun
+        s_start_color: 255, 223, 147
+        s_end_color: 255, 180, 0
+        <<: *SUN
+
+    random sun: !sun
+        s_start_color: !random_color
+        s_end_color: !random_color
+        <<: *SUN
+
