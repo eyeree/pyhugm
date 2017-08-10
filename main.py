@@ -99,7 +99,7 @@ Strand = collections.namedtuple('Strand',
         'slice',
         'color_adjustment',
         'distance',
-        'inverse_distance'
+        'distance_inverse'
     ]
 )
 
@@ -122,7 +122,7 @@ def strands(distance_function, end_point_list):
             slice_ = slice(begin, end - 1, -1)
 
         distance = distance_function(index, length)
-        inverse_distance = 1.0 - distance
+        distance_inverse = 1.0 - distance
 
         result.append(
             Strand(
@@ -133,20 +133,28 @@ def strands(distance_function, end_point_list):
                 slice_,
                 color_adjustment.copy(),
                 distance,
-                inverse_distance
+                distance_inverse
             )
         )
 
     return result
 
+def s_index_to_y_dist(index):
+    return float(index + (S_HALF - S_COUNT)) * 1.025
+
+S_DIST_NORM = math.hypot(0, s_index_to_y_dist(0)) / (S_HALF - 1)
+
 def make_s_dist(index, length):
-    y = float(index + (S_HALF - S_COUNT)) * 1.025
+    y = s_index_to_y_dist(index)
     half = int((length - 1) / 2)
     result = np.float16([math.hypot(x, y) / (S_HALF - 1) for x in range(-half, half + 1)])
+    print('s_dist', index, result)
     return result
 
 def make_r_dist(index, length):
-    return np.float16([ i / (length - 1) for i in range(0, length) ])
+    result = np.float16([ i / (length - 1) for i in range(0, length) ])
+    print('r_dist', index, result)
+    return result
 
 S_STRANDS = strands(make_s_dist,
     [
@@ -184,8 +192,11 @@ R_STRANDS = strands(make_r_dist,
     ]
 )
 
+#print('\n***************************************************************************\n')
 #print('R_STRANDS\n ', '\n  '.join([str(strand) for strand in R_STRANDS]))
+#print('\n***************************************************************************\n')
 #print('S_STRANDS\n ', '\n  '.join([str(strand) for strand in S_STRANDS]))
+#print('\n***************************************************************************\n')
 
 ALL_STRANDS = []
 ALL_STRANDS.extend(R_STRANDS)
@@ -195,9 +206,45 @@ COLOR_ADJUSTED_STRANDS = [ strand for strand in ALL_STRANDS if not np.all(strand
 
 PIXEL_DIST = np.zeros(NUM_PIXELS, dtype=np.float16)
 PIXEL_DIST_INVERSE = np.zeros(NUM_PIXELS, dtype=np.float16)
-for strand in ALL_STRANDS:
+TOTAL_PIXEL_DIST = np.zeros(NUM_PIXELS, dtype=np.float16)
+TOTAL_PIXEL_DIST_INVERSE = np.zeros(NUM_PIXELS, dtype=np.float16)
+
+TOTAL_PIXEL_DIST_S_TO_R_RATIO = 1.0 / 3.0
+TOTAL_PIXEL_DIST_S_TO_R_RATIO_INVERSE = 1.0 - TOTAL_PIXEL_DIST_S_TO_R_RATIO
+
+for strand in R_STRANDS:
     PIXEL_DIST[strand.slice] = strand.distance
-    PIXEL_DIST_INVERSE[strand.slice] = strand.inverse_distance
+    PIXEL_DIST_INVERSE[strand.slice] = strand.distance_inverse
+    TOTAL_PIXEL_DIST[strand.slice] = TOTAL_PIXEL_DIST_S_TO_R_RATIO + (strand.distance * TOTAL_PIXEL_DIST_S_TO_R_RATIO_INVERSE)
+    TOTAL_PIXEL_DIST_INVERSE[strand.slice] = strand.distance_inverse * TOTAL_PIXEL_DIST_S_TO_R_RATIO_INVERSE
+
+s_dist_min = 1000
+s_dist_max = -1000
+
+s_dist_min_inverse = 1000
+s_dist_max_inverse = -1000
+
+for strand in S_STRANDS:
+    strand_min = strand.distance.min()
+    strand_max = strand.distance.max()
+    if strand_min < s_dist_min: s_dist_min = strand_min
+    if strand_max > s_dist_max: s_dist_max = strand_max
+    strand_min_inverse = strand.distance_inverse.min()
+    strand_max_inverse = strand.distance_inverse.max()
+    if strand_min_inverse < s_dist_min_inverse: s_dist_min_inverse = strand_min_inverse
+    if strand_max_inverse > s_dist_max_inverse: s_dist_max_inverse = strand_max_inverse
+
+s_dist_range = s_dist_max - s_dist_min
+s_dist_range_inverse = s_dist_max_inverse - s_dist_min_inverse
+
+print('s_dist', s_dist_min, s_dist_max, s_dist_range)
+print('s_dist_inverse', s_dist_min_inverse, s_dist_max_inverse, s_dist_range_inverse)
+
+for strand in S_STRANDS:
+    PIXEL_DIST[strand.slice] = (strand.distance - s_dist_min) / s_dist_range
+    PIXEL_DIST_INVERSE[strand.slice] = (strand.distance_inverse - s_dist_min_inverse) / s_dist_range_inverse
+    TOTAL_PIXEL_DIST[strand.slice] = strand.distance * TOTAL_PIXEL_DIST_S_TO_R_RATIO
+    TOTAL_PIXEL_DIST_INVERSE[strand.slice] = TOTAL_PIXEL_DIST_S_TO_R_RATIO_INVERSE + (strand.distance_inverse * TOTAL_PIXEL_DIST_S_TO_R_RATIO)
 
 
 def diff_colors(start_color, end_color):
@@ -299,55 +346,66 @@ class ConfiguredDisplay(DisplayBase):
 
     PICK_NEW_DISPLAY_DELTA = 3
 
-    MODE_SHOW_NORMAL      = 0
-    MODE_NORMAL_TO_RANDOM = 1
-    MODE_SHOW_RANDOM      = 2
-    MODE_RANDOM_TO_NORMAL = 3
-    MODE_RANDOM_TO_RANDOM = 4
+    MODE_SHOW_NORMAL      = 'SHOW_NORMAL'
+    MODE_NORMAL_TO_RANDOM = 'NORMAL_TO_RANDOM'
+    MODE_SHOW_RANDOM      = 'SHOW_RANDOM'
+    MODE_RANDOM_TO_NORMAL = 'RANDOM_TO_NORMAL'
+    MODE_RANDOM_TO_RANDOM = 'RANDOM_TO_RANDOM'
 
     MODE_DURATION = {
-        MODE_SHOW_NORMAL:      5,
-        MODE_NORMAL_TO_RANDOM: 10,
-        MODE_SHOW_RANDOM:      2,
-        MODE_RANDOM_TO_NORMAL: 5,
-        MODE_RANDOM_TO_RANDOM: 2
+        MODE_SHOW_NORMAL:      1.0,
+        MODE_NORMAL_TO_RANDOM: 1.0,
+        MODE_SHOW_RANDOM:      1.0,
+        MODE_RANDOM_TO_NORMAL: 1.0,
+        MODE_RANDOM_TO_RANDOM: 1.0
     }
+
+    TRANS_PUSH_PULL_EASEING = np.vectorize(QtCore.QEasingCurve(QtCore.QEasingCurve.InElastic).valueForProgress)
+    TRANS_NOISE_EASEING = np.vectorize(QtCore.QEasingCurve(QtCore.QEasingCurve.InElastic).valueForProgress) # OutInBounce
+    #QEasingCurve::InOutExpo
 
 
     def __init__(self):
         super(ConfiguredDisplay, self).__init__()
 
-        self.__mode_change_time = 0
-        self.__mode_start_time = 0
-        self.__mode = self.MODE_SHOW_NORMAL
+        self.speed = 5.0
+        self.mode_change_time = 0
+        self.mode_start_time = 0
+        self.mode = self.MODE_SHOW_NORMAL
 
-        self.__normal_sun_pixels = self.__make_sun_pixels(center_color = rgb(255, 223, 147), edge_color = rgb(255, 180, 0))
-        self.__from_pixels = self.__normal_sun_pixels
-        self.__make_random_sun_pixels()
+        #self.normal_sun_pixels = self.make_sun_pixels(center_color = rgb(128, 0, 0), edge_color = rgb(128, 128, 128))
+        self.normal_sun_pixels = self.make_sun_pixels(center_color = rgb(255, 223, 147), edge_color = rgb(255, 180, 0))
+        self.from_pixels = self.normal_sun_pixels
 
-        self.__trans_choices = [
+        self.color_choices = [
+            self.color_normal_prepare,
+            self.color_pulling_prepare,
+            self.color_pushing_prepare,
+            self.color_random_prepare
+        ]
+
+        self.trans_choices = [
             (self.trans_blend, self.trans_blend_prepare),
             (self.trans_push, self.trans_push_prepare),
             (self.trans_pull, self.trans_pull_prepare),
             (self.trans_noise, self.trans_noise_prepare)
         ]
-        self.__trans = self.__trans_choices[0][0]
-        self.__trans_prepare = self.__trans_choices[0][1]
+
+        self.make_random_sun_pixels()
 
 
-    def __make_random_sun_pixels(self):
-        self.__center_color = random_color()
-        self.__edge_color = random_color(other_than = self.__center_color)
-        self.__make_next_sun_pixels()
+    def make_random_sun_pixels(self):
+        self.center_color = random_color()
+        self.edge_color = random_color(other_than = self.center_color)
+        self.make_next_sun_pixels()
 
 
-    def __make_next_sun_pixels(self):
-        self.__to_pixels = self.__make_sun_pixels(self.__center_color, self.__edge_color)
-        self.__pick_next_trans()
-        self.__trans_prepare()
+    def make_next_sun_pixels(self):
+        self.to_pixels = self.make_sun_pixels(self.center_color, self.edge_color)
+        self.pick_next_trans()
 
 
-    def __make_sun_pixels(self, center_color, edge_color):
+    def make_sun_pixels(self, center_color, edge_color):
 
         pixels = np.zeros([NUM_PIXELS, 3], dtype=np.uint8)
 
@@ -372,96 +430,53 @@ class ConfiguredDisplay(DisplayBase):
         return pixels
 
 
-    def __set_mode(self, frame_time, mode):
-        self.__mode = mode
-        self.__mode_change_time = frame_time.current + self.MODE_DURATION[mode]
-        self.__mode_start_time = frame_time.current
+    def pick_next_color(self):
+        prepare_fn = np.random.choice(self.color_choices, 1)[0]
+        #print('colors -->', prepare_fn.__name__)
+        prepare_fn()
 
 
-    def update(self, frame_time, pixels, lepton_data):
-
-        if self.__mode == self.MODE_SHOW_NORMAL:
-
-            pixels[:] = self.__normal_sun_pixels
-
-            if frame_time.current >= self.__mode_change_time:
-                self.__set_mode(frame_time, self.MODE_NORMAL_TO_RANDOM)
-
-        elif self.__mode == self.MODE_SHOW_RANDOM:
-
-            pixels[:] = self.__from_pixels
-
-            if frame_time.current >= self.__mode_change_time:
-                self.__set_mode(frame_time, self.__next_mode)
-
-        else:
-
-            percent = (frame_time.current - self.__mode_start_time) / (self.__mode_change_time - self.__mode_start_time)
-
-            self.__trans[self.__trans_type](percent, pixels)
-
-            if frame_time.current >= self.__mode_change_time:
-                self.__from_pixels = self.__to_pixels
-                if self.__mode == self.MODE_NORMAL_TO_RANDOM or self.__mode == self.MODE_RANDOM_TO_RANDOM:
-                    self.__set_mode(frame_time, self.MODE_SHOW_RANDOM)
-                    self.__pick_next_mode()
-                    self.__pick_next_trans()
-                else:
-                    self.__set_mode(frame_time, self.MODE_SHOW_NORMAL)
-                    threading.Thread(target=self.__make_random_sun_pixels).start()
+    def color_normal_prepare(self):
+        self.next_mode = self.MODE_RANDOM_TO_NORMAL
+        self.to_pixels = self.normal_sun_pixels
+        self.pick_next_trans()
 
 
-    def pick_next_mode(self):
+    def color_random_prepare(self):
+        self.next_mode = self.MODE_RANDOM_TO_RANDOM
+        threading.Thread(target=self.make_random_sun_pixels).start()
 
-        roll = random.randint(0, 99)
-        if roll < 25:   #  0 - 24
 
-            print('normal')
+    def color_pulling_prepare(self):
+        self.next_mode = self.MODE_RANDOM_TO_RANDOM
+        self.center_color = self.edge_color
+        self.edge_color = random_color(other_than = self.center_color)
+        self.next_mode = self.MODE_RANDOM_TO_RANDOM
+        threading.Thread(target=self.make_next_sun_pixels).start()
 
-            self.__next_mode = self.MODE_RANDOM_TO_NORMAL
-            self.__to_pixels = self.__normal_sun_pixels
-            self.__pick_next_trans()
 
-        elif roll < 50: # 25 - 49
-
-            print('random')
-
-            self.__next_mode = self.MODE_RANDOM_TO_RANDOM
-            threading.Thread(target=self.__make_random_sun_pixels).start()
-
-        elif roll < 75: # 50 - 74
-
-            print('pulling')
-
-            self.__next_mode = self.MODE_RANDOM_TO_RANDOM
-
-            self.__center_color = self.__edge_color
-            self.__edge_color = random_color(other_than = self.__center_color)
-            self.__next_mode = self.MODE_RANDOM_TO_RANDOM
-
-            threading.Thread(target=self.__make_next_sun_pixels).start()
-
-        else:          # 75 - 99
-
-            print('pushing')
-
-            self.__next_mode = self.MODE_RANDOM_TO_RANDOM
-
-            self.__edge_color = self.__center_color
-            self.__center_color = random_color(other_than = self.__edge_color)
-            self.__next_mode = self.MODE_RANDOM_TO_RANDOM
-
-            threading.Thread(target=self.__make_next_sun_pixels).start()
+    def color_pushing_prepare(self):
+        self.next_mode = self.MODE_RANDOM_TO_RANDOM
+        self.edge_color = self.center_color
+        self.center_color = random_color(other_than = self.edge_color)
+        self.next_mode = self.MODE_RANDOM_TO_RANDOM
+        threading.Thread(target=self.make_next_sun_pixels).start()
 
 
     def pick_next_trans(self):
-        choice = random.choice(self.__trans_choices)
-        self.__trans = choice[0]
-        self.__trans_prepare = choice[1]
+        choice = random.choice(self.trans_choices)
+        self.trans = choice[0]
+        trans_prepare = choice[1]
+        trans_prepare()
+        #print('trans -->', self.trans.__name__)
+
+
+    def compute_percents(self, percent, ease, dist):
+        return np.array([ 1.0 if d <= percent else ease(percent / d) for d in dist ])
 
 
     def diff_pixels(self):
-        self.__pixel_diffs = np.int16(self.__to_pixels) - self.__from_pixels
+        self.pixel_diffs = np.int16(self.to_pixels) - self.from_pixels
 
 
     def trans_blend_prepare(self):
@@ -470,7 +485,7 @@ class ConfiguredDisplay(DisplayBase):
 
     def trans_blend(self, percent, pixels):
         np.clip(
-            self.__from_pixels + (self.__pixel_diffs * percent),
+            self.from_pixels + (self.pixel_diffs * percent),
             0,
             255,
             pixels
@@ -478,17 +493,74 @@ class ConfiguredDisplay(DisplayBase):
 
 
     def trans_push_prepare(self):
-        pass
+        self.diff_pixels()
 
 
     def trans_push(self, percent, pixels):
+        percents = self.compute_percents(percent, self.TRANS_PUSH_PULL_EASEING, TOTAL_PIXEL_DIST)
+        colors = self.from_pixels + (self.pixel_diffs * percents[:,None])
+        np.clip(colors, 0, 255, pixels)
 
 
+    def trans_pull_prepare(self):
+        self.diff_pixels()
 
-        if percent < 33:
-            # push s
+
+    def trans_pull(self, percent, pixels):
+        percents = self.compute_percents(percent, self.TRANS_PUSH_PULL_EASEING, TOTAL_PIXEL_DIST_INVERSE)
+        colors = self.from_pixels + (self.pixel_diffs * percents[:,None])
+        np.clip(colors, 0, 255, pixels)
+
+
+    def trans_noise_prepare(self):
+        self.noise = np.random.random(NUM_PIXELS)
+        self.diff_pixels()
+
+
+    def trans_noise(self, percent, pixels):
+        percents = self.compute_percents(percent, self.TRANS_NOISE_EASEING, self.noise)
+        colors = self.from_pixels + (self.pixel_diffs * percents[:,None])
+        np.clip(colors, 0, 255, pixels)
+
+
+    def set_mode(self, frame_time, mode):
+        self.mode = mode
+        self.mode_change_time = frame_time.current + (self.MODE_DURATION[mode] * self.speed)
+        self.mode_start_time = frame_time.current
+        #print('******* mode *******', mode)
+
+
+    def update(self, frame_time, pixels, lepton_data):
+
+        if self.mode == self.MODE_SHOW_NORMAL:
+
+            pixels[:] = self.normal_sun_pixels
+
+            if frame_time.current >= self.mode_change_time:
+                self.set_mode(frame_time, self.MODE_NORMAL_TO_RANDOM)
+
+        elif self.mode == self.MODE_SHOW_RANDOM:
+
+            pixels[:] = self.from_pixels
+
+            if frame_time.current >= self.mode_change_time:
+                self.set_mode(frame_time, self.next_mode)
+
         else:
-            # push r
+
+            percent = (frame_time.current - self.mode_start_time) / (self.mode_change_time - self.mode_start_time)
+
+            self.trans(percent, pixels)
+
+            if frame_time.current >= self.mode_change_time:
+                self.from_pixels = self.to_pixels
+                if self.mode == self.MODE_NORMAL_TO_RANDOM or self.mode == self.MODE_RANDOM_TO_RANDOM:
+                    self.set_mode(frame_time, self.MODE_SHOW_RANDOM)
+                    self.pick_next_color()
+                else:
+                    self.set_mode(frame_time, self.MODE_SHOW_NORMAL)
+                    threading.Thread(target=self.make_random_sun_pixels).start()
+
 
 
 class DisplaySun(DisplayBase):
