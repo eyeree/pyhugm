@@ -16,6 +16,7 @@ import time
 import traceback
 import threading
 
+from colormath import color_objects, color_diff, color_conversions
 import cv2
 import numpy as np
 import opc
@@ -49,6 +50,7 @@ COLOR_GREEN  = rgb(0, 255, 0)
 COLOR_BLUE   = rgb(0, 0, 255)
 COLOR_YELLOW = COLOR_RED + COLOR_GREEN
 COLOR_PURPLE = COLOR_RED + COLOR_BLUE
+COLOR_MASK   = COLOR_PURPLE
 
 COLOR_BEGIN  = COLOR_YELLOW
 COLOR_END    = COLOR_PURPLE
@@ -58,7 +60,8 @@ def gamma_lut(correction):
 
 print('generating GAMMA_LUT')
 GAMMA_CORRECTIONS = [ x / 100.0 for x in range(70, 130) ]
-#[ 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.0, 1.05, 1.10, 1.15, 1.20, 1.25, 1.30, 1.35, 1.40, 1.45, 1.50 ]
+print('GAMMA_CORRECTIONS', GAMMA_CORRECTIONS)
+#[0.7, 0.71, 0.72, 0.73, 0.74, 0.75, 0.76, 0.77, 0.78, 0.79, 0.8, 0.81, 0.82, 0.83, 0.84, 0.85, 0.86, 0.87, 0.88, 0.89, 0.9, 0.91, 0.92, 0.93, 0.94, 0.95, 0.96, 0.97, 0.98, 0.99, 1.0, 1.01, 1.02, 1.03, 1.04, 1.05, 1.06, 1.07, 1.08, 1.09, 1.1, 1.11, 1.12, 1.13, 1.14, 1.15, 1.16, 1.17, 1.18, 1.19, 1.2, 1.21, 1.22, 1.23, 1.24, 1.25, 1.26, 1.27, 1.28, 1.29]
 NO_CORRECTION = GAMMA_CORRECTIONS.index(1.0)
 GAMMA_LUT = [ gamma_lut(correction) for correction in GAMMA_CORRECTIONS ]
 
@@ -67,7 +70,7 @@ def rgb_adjust(r, g, b):
 
 NO_COLOR_ADJUSTMENT = rgb_adjust(NO_CORRECTION, NO_CORRECTION, NO_CORRECTION)
 
-DEFAULT_COLOR_ADJUSTMENT = rgb_adjust(GAMMA_CORRECTIONS.index(1.02), GAMMA_CORRECTIONS.index(0.81), GAMMA_CORRECTIONS.index(0.98))
+DEFAULT_COLOR_ADJUSTMENT = rgb_adjust(GAMMA_CORRECTIONS.index(0.85), GAMMA_CORRECTIONS.index(0.85), GAMMA_CORRECTIONS.index(0.85))
 
 
 #### Pixel Stuff
@@ -99,7 +102,8 @@ Strand = collections.namedtuple('Strand',
         'slice',
         'color_adjustment',
         'distance',
-        'distance_inverse'
+        'distance_inverse',
+        'lepton_slice'
     ]
 )
 
@@ -112,7 +116,7 @@ def strands(distance_function, end_point_list):
 
         index = len(result)
 
-        begin, end, color_adjustment = end_points
+        begin, end, l, t, r, b, color_adjustment = end_points
 
         if begin < end:
             length = end - begin + 1
@@ -133,7 +137,8 @@ def strands(distance_function, end_point_list):
                 slice_,
                 color_adjustment.copy(),
                 distance,
-                distance_inverse
+                distance_inverse,
+                (slice(t,b), slice(l,r))
             )
         )
 
@@ -148,47 +153,47 @@ def make_s_dist(index, length):
     y = s_index_to_y_dist(index)
     half = int((length - 1) / 2)
     result = np.float16([math.hypot(x, y) / (S_HALF - 1) for x in range(-half, half + 1)])
-    print('s_dist', index, result)
+    #print('s_dist', index, result)
     return result
 
 def make_r_dist(index, length):
     result = np.float16([ i / (length - 1) for i in range(0, length) ])
-    print('r_dist', index, result)
+    #print('r_dist', index, result)
     return result
 
 S_STRANDS = strands(make_s_dist,
     [
-        (384, 406, DEFAULT_COLOR_ADJUSTMENT),    # 0
-        (192, 214, DEFAULT_COLOR_ADJUSTMENT),    # 1
-        (256, 276, DEFAULT_COLOR_ADJUSTMENT),    # 2
-        (724, 704, DEFAULT_COLOR_ADJUSTMENT),    # 3
-        (658, 640, DEFAULT_COLOR_ADJUSTMENT),    # 4
-        (448, 464, DEFAULT_COLOR_ADJUSTMENT),    # 5
-        (479, 465, DEFAULT_COLOR_ADJUSTMENT),    # 6
-        (659, 671, DEFAULT_COLOR_ADJUSTMENT),    # 7
-        (223, 215, NO_COLOR_ADJUSTMENT),         # 8
-        (725, 729, DEFAULT_COLOR_ADJUSTMENT)     # 9
+        (384, 406,  5, 56, 75, 60, DEFAULT_COLOR_ADJUSTMENT),    # 0
+        (192, 214,  5, 52, 75, 56, DEFAULT_COLOR_ADJUSTMENT),    # 1
+        (256, 276,  5, 48, 75, 52, DEFAULT_COLOR_ADJUSTMENT),    # 2
+        (724, 704,  5, 44, 75, 48, DEFAULT_COLOR_ADJUSTMENT),    # 3
+        (658, 640, 10, 40, 70, 44, DEFAULT_COLOR_ADJUSTMENT),    # 4
+        (448, 464, 15, 36, 65, 40, DEFAULT_COLOR_ADJUSTMENT),    # 5
+        (479, 465, 20, 32, 60, 36, DEFAULT_COLOR_ADJUSTMENT),    # 6
+        (659, 671, 25, 28, 55, 32, DEFAULT_COLOR_ADJUSTMENT),    # 7
+        (223, 215, 30, 24, 50, 28, NO_COLOR_ADJUSTMENT),         # 8
+        (725, 729, 35, 20, 45, 24, DEFAULT_COLOR_ADJUSTMENT)     # 9
     ]
 )
 
 R_STRANDS = strands(make_r_dist,
     [
-        (128, 159, NO_COLOR_ADJUSTMENT),       # 0 (L)
-        ( 64,  95, NO_COLOR_ADJUSTMENT),       # 1
-        (320, 351, DEFAULT_COLOR_ADJUSTMENT),  # 2
-        (960, 991, NO_COLOR_ADJUSTMENT),       # 3
-        (  0,  31, NO_COLOR_ADJUSTMENT),       # 4
-        (224, 255, NO_COLOR_ADJUSTMENT),       # 5
-        (576, 607, NO_COLOR_ADJUSTMENT),       # 6
-        (480, 511, NO_COLOR_ADJUSTMENT),       # 7
-        (768, 799, NO_COLOR_ADJUSTMENT),       # 8
-        (896, 927, DEFAULT_COLOR_ADJUSTMENT),  # 9
-        (832, 863, NO_COLOR_ADJUSTMENT),       # 10
-        (512, 543, NO_COLOR_ADJUSTMENT),       # 11
-        (730, 761, NO_COLOR_ADJUSTMENT),       # 12
-        (672, 703, NO_COLOR_ADJUSTMENT),       # 13
-        (277, 308, DEFAULT_COLOR_ADJUSTMENT),  # 14
-        (407, 438, DEFAULT_COLOR_ADJUSTMENT)   # 15 (R)
+        (128, 159,  0,  0,  5, 60, NO_COLOR_ADJUSTMENT),       # 0 (L)
+        ( 64,  95,  5,  0, 10, 44, NO_COLOR_ADJUSTMENT),       # 1
+        (320, 351, 10,  0, 15, 40, DEFAULT_COLOR_ADJUSTMENT),  # 2
+        (960, 991, 15,  0, 20, 36, NO_COLOR_ADJUSTMENT),       # 3
+        (  0,  31, 20,  0, 25, 32, NO_COLOR_ADJUSTMENT),       # 4
+        (224, 255, 25,  0, 30, 28, NO_COLOR_ADJUSTMENT),       # 5
+        (576, 607, 30,  0, 35, 28, NO_COLOR_ADJUSTMENT),       # 6
+        (480, 511, 35,  0, 40, 24, NO_COLOR_ADJUSTMENT),       # 7
+        (768, 799, 40,  0, 45, 24, NO_COLOR_ADJUSTMENT),       # 8
+        (896, 927, 45,  0, 50, 28, DEFAULT_COLOR_ADJUSTMENT),  # 9
+        (832, 863, 50,  0, 55, 28, NO_COLOR_ADJUSTMENT),       # 10
+        (512, 543, 55,  0, 60, 32, NO_COLOR_ADJUSTMENT),       # 11
+        (730, 761, 60,  0, 65, 36, NO_COLOR_ADJUSTMENT),       # 12
+        (672, 703, 65,  0, 70, 40, NO_COLOR_ADJUSTMENT),       # 13
+        (277, 308, 70,  0, 75, 44, DEFAULT_COLOR_ADJUSTMENT),  # 14
+        (407, 438, 75,  0, 80, 60, DEFAULT_COLOR_ADJUSTMENT)   # 15 (R)
     ]
 )
 
@@ -212,11 +217,15 @@ TOTAL_PIXEL_DIST_INVERSE = np.zeros(NUM_PIXELS, dtype=np.float16)
 TOTAL_PIXEL_DIST_S_TO_R_RATIO = 1.0 / 3.0
 TOTAL_PIXEL_DIST_S_TO_R_RATIO_INVERSE = 1.0 - TOTAL_PIXEL_DIST_S_TO_R_RATIO
 
+S_MASK = np.zeros(NUM_PIXELS, dtype=np.bool)
+R_MASK = np.zeros(NUM_PIXELS, dtype=np.bool)
+
 for strand in R_STRANDS:
     PIXEL_DIST[strand.slice] = strand.distance
     PIXEL_DIST_INVERSE[strand.slice] = strand.distance_inverse
     TOTAL_PIXEL_DIST[strand.slice] = TOTAL_PIXEL_DIST_S_TO_R_RATIO + (strand.distance * TOTAL_PIXEL_DIST_S_TO_R_RATIO_INVERSE)
     TOTAL_PIXEL_DIST_INVERSE[strand.slice] = strand.distance_inverse * TOTAL_PIXEL_DIST_S_TO_R_RATIO_INVERSE
+    R_MASK[strand.slice] = True
 
 s_dist_min = 1000
 s_dist_max = -1000
@@ -237,15 +246,15 @@ for strand in S_STRANDS:
 s_dist_range = s_dist_max - s_dist_min
 s_dist_range_inverse = s_dist_max_inverse - s_dist_min_inverse
 
-print('s_dist', s_dist_min, s_dist_max, s_dist_range)
-print('s_dist_inverse', s_dist_min_inverse, s_dist_max_inverse, s_dist_range_inverse)
-
 for strand in S_STRANDS:
     PIXEL_DIST[strand.slice] = (strand.distance - s_dist_min) / s_dist_range
     PIXEL_DIST_INVERSE[strand.slice] = (strand.distance_inverse - s_dist_min_inverse) / s_dist_range_inverse
     TOTAL_PIXEL_DIST[strand.slice] = strand.distance * TOTAL_PIXEL_DIST_S_TO_R_RATIO
     TOTAL_PIXEL_DIST_INVERSE[strand.slice] = TOTAL_PIXEL_DIST_S_TO_R_RATIO_INVERSE + (strand.distance_inverse * TOTAL_PIXEL_DIST_S_TO_R_RATIO)
+    S_MASK[strand.slice] = True
 
+S_PIXEL_COUNT = np.sum(S_MASK)
+R_PIXEL_COUNT = np.sum(R_MASK)
 
 def diff_colors(start_color, end_color):
     return np.int16(end_color) - start_color
@@ -308,27 +317,35 @@ def easing_curve_fn(easing_curve_type):
 
 
 MIN_COLOR_SUM = 16
-MAX_COLOR_SUM = (255 - MIN_COLOR_SUM) * 3
+MAX_COLOR_SUM = 3 * 192
 MIN_COLOR_DELTA = 16
+MIN_DELTA_E = 30.0
 
 def random_color(other_than = None):
     for i in range(1,10):
+
         r = random.randint(0, 255)
         g = random.randint(0, 255)
         b = random.randint(0, 255)
+
         s = r + g + b
-        if s >= MIN_COLOR_SUM and s <= MAX_COLOR_SUM:
-            if other_than is not None:
-                count = 0
-                count += 1 if abs(other_than[R] - r) > MIN_COLOR_DELTA else 0
-                count += 2 if abs(other_than[G] - g) > MIN_COLOR_DELTA else 0
-                count += 3 if abs(other_than[B] - b) > MIN_COLOR_DELTA else 0
-                if count >= 2:
-                    break
-                print('rejected count', count, r, g, b, other_than)
-            else:
-                break
-        print('rejected sum', s, r, g, b)
+
+        if s < MIN_COLOR_SUM or s > MAX_COLOR_SUM:
+            print('rejected sum', s, r, g, b)
+            continue
+
+        if other_than is not None:
+            other_rgb = color_objects.sRGBColor(other_than[R], other_than[G], other_than[B], is_upscaled = True)
+            check_rgb = color_objects.sRGBColor(r, g, b, is_upscaled = True)
+            other_lab = color_conversions.convert_color(other_rgb, color_objects.LabColor)
+            check_lab = color_conversions.convert_color(check_rgb, color_objects.LabColor)
+            delta_e = color_diff.delta_e_cie2000(other_lab, check_lab)
+            if delta_e <= MIN_DELTA_E:
+                print('rejected delta_e', delta_e, r, g, b, other_than)
+                continue
+
+        break
+
     return rgb(r, g, b)
 
 
@@ -342,6 +359,24 @@ def identity(x):
     return x
 
 
+EASING_FN = [ np.vectorize(QtCore.QEasingCurve(i).valueForProgress, doc = 'QEasingCurve({})'.format(i), otypes=[np.float32]) for i in range(0, 41) ]
+
+
+def choice_fn(options):
+
+    weights, choices = zip(*options)
+
+    sum_weights = sum(weights)
+    probabilities = [ w / sum_weights for w in weights ]
+
+    #print('choice_fn', choices, probabilities)
+
+    def choose():
+        return np.random.choice(choices, p=probabilities)
+
+    return choose
+
+
 class ConfiguredDisplay(DisplayBase):
 
     PICK_NEW_DISPLAY_DELTA = 3
@@ -351,47 +386,142 @@ class ConfiguredDisplay(DisplayBase):
     MODE_SHOW_RANDOM      = 'SHOW_RANDOM'
     MODE_RANDOM_TO_NORMAL = 'RANDOM_TO_NORMAL'
     MODE_RANDOM_TO_RANDOM = 'RANDOM_TO_RANDOM'
+    MODE_SHOW_LEPTON      = 'SHOW_LEPTON'
+    MODE_ECLIPSE          = 'ECLIPSE'
 
     MODE_DURATION = {
-        MODE_SHOW_NORMAL:      1.0,
-        MODE_NORMAL_TO_RANDOM: 1.0,
-        MODE_SHOW_RANDOM:      1.0,
-        MODE_RANDOM_TO_NORMAL: 1.0,
-        MODE_RANDOM_TO_RANDOM: 1.0
+        MODE_SHOW_NORMAL:       5.0,
+        MODE_NORMAL_TO_RANDOM: 10.0,
+        MODE_SHOW_RANDOM:       0.1,
+        MODE_RANDOM_TO_NORMAL: 10.0,
+        MODE_RANDOM_TO_RANDOM:  3.0,
+        MODE_SHOW_LEPTON:      10.0
     }
 
-    TRANS_PUSH_PULL_EASEING = np.vectorize(QtCore.QEasingCurve(QtCore.QEasingCurve.InElastic).valueForProgress)
-    TRANS_NOISE_EASEING = np.vectorize(QtCore.QEasingCurve(QtCore.QEasingCurve.InElastic).valueForProgress) # OutInBounce
-    #QEasingCurve::InOutExpo
+    MIN_SPEED = 0.01   # fast
+    MAX_SPEED = 1.00    # slow
 
+    MIN_SPEED_DELTA = 0.01
+    MAX_SPEED_DELTA = 0.10
 
     def __init__(self):
         super(ConfiguredDisplay, self).__init__()
 
-        self.speed = 5.0
+        self.speed = 0.5
         self.mode_change_time = 0
         self.mode_start_time = 0
-        self.mode = self.MODE_SHOW_NORMAL
+        self.mode = self.MODE_SHOW_LEPTON
+        self.next_mode = None
 
-        #self.normal_sun_pixels = self.make_sun_pixels(center_color = rgb(128, 0, 0), edge_color = rgb(128, 128, 128))
         self.normal_sun_pixels = self.make_sun_pixels(center_color = rgb(255, 223, 147), edge_color = rgb(255, 180, 0))
         self.from_pixels = self.normal_sun_pixels
 
-        self.color_choices = [
-            self.color_normal_prepare,
-            self.color_pulling_prepare,
-            self.color_pushing_prepare,
-            self.color_random_prepare
-        ]
+        self.color_choice = choice_fn(
+            [
+                (1, self.color_normal_prepare),
+                (3, self.color_pulling_prepare),
+                (3, self.color_pushing_prepare),
+                (2, self.color_random_prepare)
+            ]
+        )
 
-        self.trans_choices = [
-            (self.trans_blend, self.trans_blend_prepare),
-            (self.trans_push, self.trans_push_prepare),
-            (self.trans_pull, self.trans_pull_prepare),
-            (self.trans_noise, self.trans_noise_prepare)
-        ]
+        self.trans_choice = choice_fn(
+            [
+                (1, self.trans_blend_prepare),
+                (1, self.trans_push_prepare),
+                (1, self.trans_pull_prepare),
+                (1, self.trans_noise_prepare)
+            ]
+        )
 
         self.make_random_sun_pixels()
+
+        self.effect_dist = np.random.random(NUM_PIXELS)
+
+
+    def update(self, frame_time, pixels, lepton_data, movement):
+
+        if self.mode == self.MODE_SHOW_LEPTON:
+
+            pixels[:] = self.normal_sun_pixels
+
+            if lepton_data is None:
+                print('no lepton data')
+            else:
+
+                for strand in R_STRANDS:
+                    strip = lepton_data[strand.lepton_slice]
+                    strip = cv2.resize(strip, (1, strand.length))[:,0]
+                    strip = np.flipud(strip)
+                    mask = strip[:,R] < 250
+                    np.copyto(pixels[strand.slice], strip, where = mask[:,None])
+
+                count_complete = 0
+
+                for strand in S_STRANDS:
+                    strip = lepton_data[strand.lepton_slice]
+                    strip = cv2.resize(strip, (strand.length, 1))[0]
+                    mask = strip[:,R] < 250
+                    count_complete += np.sum(mask)
+                    np.copyto(pixels[strand.slice], strip, where = mask[:,None])
+
+                percent_complete = count_complete / S_PIXEL_COUNT
+
+                if percent_complete >= 0.98:
+                    # TODO:
+                    pixels[:] = COLOR_GREEN
+
+                if not movement:
+                    if frame_time.current >= self.mode_change_time:
+                        self.set_mode(frame_time, self.MODE_SHOW_NORMAL)
+                        self.start(self.make_random_sun_pixels)
+                else:
+                    self.mode_change_time = frame_time.current + self.MODE_DURATION[self.MODE_SHOW_LEPTON]
+
+        elif self.mode == self.MODE_SHOW_NORMAL:
+
+            pixels[:] = self.normal_sun_pixels
+
+            if movement:
+                self.set_mode(frame_time, self.MODE_SHOW_LEPTON)
+            elif frame_time.current >= self.mode_change_time:
+                self.set_mode(frame_time, self.MODE_NORMAL_TO_RANDOM)
+
+        elif self.mode == self.MODE_SHOW_RANDOM:
+
+            pixels[:] = self.from_pixels
+
+            if movement:
+                self.set_mode(frame_time, self.MODE_RANDOM_TO_NORMAL)
+            elif frame_time.current >= self.mode_change_time:
+                if self.next_mode is None:
+                    print('next_mode is None')
+                else:
+                    self.set_mode(frame_time, self.next_mode)
+
+        else:
+
+            percent = (frame_time.current - self.mode_start_time) / (self.mode_change_time - self.mode_start_time)
+
+            #percents = np.array([ 1.0 if d <= percent else self.trans_ease(percent / d) for d in self.trans_dist ])
+            percents = self.trans_ease(percent / self.trans_dist)
+            colors = self.from_pixels + (self.pixel_diffs * percents[:,None])
+            np.clip(colors, 0, 255, pixels)
+
+            if frame_time.current >= self.mode_change_time:
+                self.from_pixels = self.to_pixels
+                if self.mode == self.MODE_NORMAL_TO_RANDOM or self.mode == self.MODE_RANDOM_TO_RANDOM:
+                    self.set_mode(frame_time, self.MODE_SHOW_RANDOM)
+                    self.start(self.pick_next_color)
+                else:
+                    self.set_mode(frame_time, self.MODE_SHOW_NORMAL)
+                    self.start(self.make_random_sun_pixels)
+
+    def start(self, fn):
+        if False:
+            threading.Thread(target=fn).start()
+        else:
+            fn()
 
 
     def make_random_sun_pixels(self):
@@ -431,136 +561,83 @@ class ConfiguredDisplay(DisplayBase):
 
 
     def pick_next_color(self):
-        prepare_fn = np.random.choice(self.color_choices, 1)[0]
-        #print('colors -->', prepare_fn.__name__)
-        prepare_fn()
+        color_prepare = self.color_choice()
+        #print(color_prepare.__name__)
+        color_prepare()
 
 
     def color_normal_prepare(self):
         self.next_mode = self.MODE_RANDOM_TO_NORMAL
+        #print('next_mode', self.next_mode)
         self.to_pixels = self.normal_sun_pixels
         self.pick_next_trans()
 
 
     def color_random_prepare(self):
         self.next_mode = self.MODE_RANDOM_TO_RANDOM
-        threading.Thread(target=self.make_random_sun_pixels).start()
+        #print('next_mode', self.next_mode)
+        self.start(self.make_random_sun_pixels)
 
 
     def color_pulling_prepare(self):
         self.next_mode = self.MODE_RANDOM_TO_RANDOM
+        #print('next_mode', self.next_mode)
         self.center_color = self.edge_color
         self.edge_color = random_color(other_than = self.center_color)
-        self.next_mode = self.MODE_RANDOM_TO_RANDOM
-        threading.Thread(target=self.make_next_sun_pixels).start()
+        self.start(self.make_next_sun_pixels)
 
 
     def color_pushing_prepare(self):
         self.next_mode = self.MODE_RANDOM_TO_RANDOM
+        #print('next_mode', self.next_mode)
         self.edge_color = self.center_color
         self.center_color = random_color(other_than = self.edge_color)
-        self.next_mode = self.MODE_RANDOM_TO_RANDOM
-        threading.Thread(target=self.make_next_sun_pixels).start()
+        self.start(self.make_next_sun_pixels)
 
 
     def pick_next_trans(self):
-        choice = random.choice(self.trans_choices)
-        self.trans = choice[0]
-        trans_prepare = choice[1]
-        trans_prepare()
-        #print('trans -->', self.trans.__name__)
-
-
-    def compute_percents(self, percent, ease, dist):
-        return np.array([ 1.0 if d <= percent else ease(percent / d) for d in dist ])
-
-
-    def diff_pixels(self):
+        self.trans_ease = random.choice(EASING_FN)
+        print(self.trans_ease.__doc__)
+        #self.trans_ease = EASING_FN[QtCore.QEasingCurve.Linear]
         self.pixel_diffs = np.int16(self.to_pixels) - self.from_pixels
+        trans_prepare = self.trans_choice()
+        #print(trans_prepare.__name__)
+        trans_prepare()
 
 
     def trans_blend_prepare(self):
-        self.diff_pixels()
-
-
-    def trans_blend(self, percent, pixels):
-        np.clip(
-            self.from_pixels + (self.pixel_diffs * percent),
-            0,
-            255,
-            pixels
-        )
+        self.trans_dist = np.ones(NUM_PIXELS, dtype=np.float16)
 
 
     def trans_push_prepare(self):
-        self.diff_pixels()
-
-
-    def trans_push(self, percent, pixels):
-        percents = self.compute_percents(percent, self.TRANS_PUSH_PULL_EASEING, TOTAL_PIXEL_DIST)
-        colors = self.from_pixels + (self.pixel_diffs * percents[:,None])
-        np.clip(colors, 0, 255, pixels)
+        self.trans_dist = TOTAL_PIXEL_DIST
 
 
     def trans_pull_prepare(self):
-        self.diff_pixels()
-
-
-    def trans_pull(self, percent, pixels):
-        percents = self.compute_percents(percent, self.TRANS_PUSH_PULL_EASEING, TOTAL_PIXEL_DIST_INVERSE)
-        colors = self.from_pixels + (self.pixel_diffs * percents[:,None])
-        np.clip(colors, 0, 255, pixels)
+        self.trans_dist = TOTAL_PIXEL_DIST_INVERSE
 
 
     def trans_noise_prepare(self):
-        self.noise = np.random.random(NUM_PIXELS)
-        self.diff_pixels()
-
-
-    def trans_noise(self, percent, pixels):
-        percents = self.compute_percents(percent, self.TRANS_NOISE_EASEING, self.noise)
-        colors = self.from_pixels + (self.pixel_diffs * percents[:,None])
-        np.clip(colors, 0, 255, pixels)
+        self.trans_dist = PIXEL_DIST * 0.05
+        self.trans_dist += 0.95
+        self.trans_dist[S_MASK] = np.random.random(S_PIXEL_COUNT)
 
 
     def set_mode(self, frame_time, mode):
+
         self.mode = mode
         self.mode_change_time = frame_time.current + (self.MODE_DURATION[mode] * self.speed)
         self.mode_start_time = frame_time.current
-        #print('******* mode *******', mode)
 
+        old_speed = self.speed
+        new_speed = old_speed + ((EASING_FN[QtCore.QEasingCurve.InOutExpo](random.random()) * (self.MAX_SPEED_DELTA * 2)) - self.MAX_SPEED_DELTA)
+        if new_speed > self.MAX_SPEED:
+            new_speed = self.MAX_SPEED - (new_speed - self.MAX_SPEED)
+        elif new_speed < self.MIN_SPEED:
+            new_speed = self.MIN_SPEED + (self.MIN_SPEED - new_speed)
+        self.speed = new_speed
 
-    def update(self, frame_time, pixels, lepton_data):
-
-        if self.mode == self.MODE_SHOW_NORMAL:
-
-            pixels[:] = self.normal_sun_pixels
-
-            if frame_time.current >= self.mode_change_time:
-                self.set_mode(frame_time, self.MODE_NORMAL_TO_RANDOM)
-
-        elif self.mode == self.MODE_SHOW_RANDOM:
-
-            pixels[:] = self.from_pixels
-
-            if frame_time.current >= self.mode_change_time:
-                self.set_mode(frame_time, self.next_mode)
-
-        else:
-
-            percent = (frame_time.current - self.mode_start_time) / (self.mode_change_time - self.mode_start_time)
-
-            self.trans(percent, pixels)
-
-            if frame_time.current >= self.mode_change_time:
-                self.from_pixels = self.to_pixels
-                if self.mode == self.MODE_NORMAL_TO_RANDOM or self.mode == self.MODE_RANDOM_TO_RANDOM:
-                    self.set_mode(frame_time, self.MODE_SHOW_RANDOM)
-                    self.pick_next_color()
-                else:
-                    self.set_mode(frame_time, self.MODE_SHOW_NORMAL)
-                    threading.Thread(target=self.make_random_sun_pixels).start()
-
+        print('******* mode *******', mode, old_speed, new_speed)
 
 
 class DisplaySun(DisplayBase):
@@ -592,7 +669,7 @@ class DisplaySun(DisplayBase):
         self.__pixels = pixels
 
 
-    def update(self, frame_time, pixels, lepton_data):
+    def update(self, frame_time, pixels, lepton_data, movement):
         pixels[:] = self.__pixels
 
 
@@ -680,7 +757,7 @@ class DisplayColor(DisplayBase):
         self.__color[:] = COLOR_WHITE
         self.color_changed.emit(self.__color)
 
-    def update(self, frame_time, pixels, lepton_data):
+    def update(self, frame_time, pixels, lepton_data, movement):
 
         pixels[:] = self.__color
 
@@ -708,7 +785,7 @@ class DisplayIndex(DisplayBase):
     def set_pixel_index(self, pixel_index):
         self.__pixel_index = pixel_index
 
-    def update(self, frame_time, pixels, lepton_data):
+    def update(self, frame_time, pixels, lepton_data, movement):
 
         r = R_STRANDS[self.__r_index]
         pixels[r.slice] = COLOR_GRAY
@@ -760,7 +837,7 @@ class FrameTime(object):
 
         self.__frame_count += 1
         display_delta_time = current_time - self.__last_display_time
-        if display_delta_time >= 10:
+        if display_delta_time >= 30:
             if True:
                 print(
                     'update fps', self.__frame_count / display_delta_time,
@@ -808,7 +885,6 @@ class LeptonThread(QtCore.QThread):
 
             while True:
                 lepton_frame = self.__connection.recv()
-                cv2.normalize(lepton_frame, lepton_frame, 0, 255, cv2.NORM_MINMAX)
                 self.lepton_frame_captured.emit(lepton_frame)
 
         except IOError:
@@ -830,6 +906,7 @@ class UpdateThread(QtCore.QThread):
         self.__display = initial_display
         self.__opc_client = opc.Client(self.OPC_ADDRESS)
         self.__lepton_frame = None
+        self.__movement = None
         self.__color_adjustment_enabled = True
 
     @QtCore.pyqtSlot()
@@ -842,8 +919,9 @@ class UpdateThread(QtCore.QThread):
         self.__display = display
 
     @QtCore.pyqtSlot()
-    def set_lepton_frame(self, lepton_frame):
+    def set_lepton_frame(self, lepton_frame, movement):
         self.__lepton_frame = lepton_frame
+        self.__movement = movement
 
     @QtCore.pyqtSlot()
     def set_color_adjustment_enabled(self, enabled):
@@ -869,9 +947,9 @@ class UpdateThread(QtCore.QThread):
 
             pixels.fill(0)
 
-            self.__display.update(frame_time, pixels, self.__lepton_frame)
+            self.__display.update(frame_time, pixels, self.__lepton_frame, self.__movement)
 
-            if self.__color_adjustment_enabled:
+            if False: # self.__color_adjustment_enabled:
                 for strand in COLOR_ADJUSTED_STRANDS:
                     if strand.color_adjustment[R] != NO_CORRECTION:
                         pixels[strand.slice, R_SLICE] = GAMMA_LUT[strand.color_adjustment[R]][pixels[strand.slice, R_SLICE]]
@@ -1014,6 +1092,11 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
         self.pathEdit.setText('/home/pi/pyhugm/config.yaml')
         #self.__load_config()
 
+        self.fast_image = np.zeros([Lepton.ROWS, Lepton.COLS], dtype=np.float32)
+        self.slow_image = np.zeros([Lepton.ROWS, Lepton.COLS], dtype=np.float32)
+        self.movement_count = 0
+        self.movement = False
+
         print('main window started')
 
 
@@ -1130,16 +1213,62 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
 
     def __lepton_frame_captured(self, lepton_frame):
         self.__display_image(lepton_frame)
-        self.__update_thread.set_lepton_frame(lepton_frame)
 
     def __perform_ffc(self):
         subprocess.call(['/home/pi/LeptonModule-master/software/flir_ffc/flir_ffc'])
 
+    MOVEMENT_TOP    = 15
+    MOVEMENT_BOTTOM = 60
+    MOVEMENT_LEFT   = 20
+    MOVEMENT_RIGHT  = 60
+
+    MOVEMENT_SLICE = (slice(MOVEMENT_TOP, MOVEMENT_BOTTOM), slice(MOVEMENT_LEFT, MOVEMENT_RIGHT))
+    MOVEMENT_RECT = ((MOVEMENT_LEFT-1, MOVEMENT_TOP), (MOVEMENT_RIGHT, MOVEMENT_BOTTOM-1))
+
     def __display_image(self, lepton_frame):
-        rgb_data = np.uint8(cv2.cvtColor(lepton_frame, cv2.COLOR_GRAY2RGB))
-        rows, columns, channel = rgb_data.shape
-        bytesPerLine = 3 * columns
-        image = QtGui.QImage(rgb_data.data, columns, rows, bytesPerLine, QtGui.QImage.Format_RGB888)
+
+        # half assed filter that seems to work....
+        np.clip(lepton_frame, 8000, 8500, lepton_frame)
+        lepton_frame -= 8000
+        cv2.GaussianBlur(lepton_frame, (21, 21), 0)
+        lepton_frame[ lepton_frame < 200 ] = 0
+
+        gray = np.float32(lepton_frame) / 255
+
+        cv2.accumulateWeighted(gray, self.slow_image, 0.05)
+        cv2.accumulateWeighted(gray, self.fast_image, 0.7)
+
+        delta = cv2.absdiff(self.slow_image[self.MOVEMENT_SLICE], self.fast_image[self.MOVEMENT_SLICE])
+        thresh = np.sum(cv2.threshold(delta, 0.3, 1.0, cv2.THRESH_BINARY)[1])
+        #print('thresh', np.sum(thresh), np.sum(delta), delta.min(), delta.max())
+        if self.movement_count > 0 and thresh < 3:
+            self.movement_count -= 1
+            print('dec movement', self.movement_count)
+            if self.movement_count == 0 and self.movement:
+                print('movement stopped')
+                self.movement = False
+        elif self.movement_count < 10 and thresh > 10:
+            self.movement_count += 1
+            print('inc movement', self.movement_count)
+            if self.movement_count == 10 and not self.movement:
+                print('movement started')
+                self.movement = True
+
+        eased = np.fliplr(EASING_FN[QtCore.QEasingCurve.OutInQuint](1.0 - self.fast_image))
+        rgb_data = np.uint8(cv2.cvtColor(eased * 255, cv2.COLOR_GRAY2RGB))
+
+        rgb_data[:,:,G] = 0
+        mask = rgb_data[:,:,R] < 250
+
+        self.__update_thread.set_lepton_frame(rgb_data, self.movement)
+
+        image_data = np.zeros_like(rgb_data)
+        image_data[:, :] = COLOR_WHITE
+        np.copyto(image_data, rgb_data, where = mask[:,:,None])
+        cv2.rectangle(image_data, self.MOVEMENT_RECT[0], self.MOVEMENT_RECT[1], (0, 255, 0), 1)
+
+        bytesPerLine = 3 * Lepton.COLS
+        image = QtGui.QImage(image_data.data, Lepton.COLS, Lepton.ROWS, bytesPerLine, QtGui.QImage.Format_RGB888)
         pixmap = QtGui.QPixmap.fromImage(image)
         pixmap = pixmap.scaled(self.imageLabel.width(), self.imageLabel.height(), QtCore.Qt.KeepAspectRatio)
         self.imageLabel.setPixmap(pixmap)
