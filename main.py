@@ -391,14 +391,14 @@ class ConfiguredDisplay(DisplayBase):
 
     MODE_DURATION = {
         MODE_SHOW_NORMAL:       5.0,
-        MODE_NORMAL_TO_RANDOM: 10.0,
+        MODE_NORMAL_TO_RANDOM: 15.0,
         MODE_SHOW_RANDOM:       0.1,
-        MODE_RANDOM_TO_NORMAL: 10.0,
-        MODE_RANDOM_TO_RANDOM:  3.0,
+        MODE_RANDOM_TO_NORMAL:  5.0,
+        MODE_RANDOM_TO_RANDOM: 10.0,
         MODE_SHOW_LEPTON:      10.0
     }
 
-    MIN_SPEED = 0.01   # fast
+    MIN_SPEED = 0.10   # fast
     MAX_SPEED = 1.00    # slow
 
     MIN_SPEED_DELTA = 0.01
@@ -412,6 +412,7 @@ class ConfiguredDisplay(DisplayBase):
         self.mode_start_time = 0
         self.mode = self.MODE_SHOW_LEPTON
         self.next_mode = None
+        self.percent_complete_time = None
 
         self.normal_sun_pixels = self.make_sun_pixels(center_color = rgb(255, 223, 147), edge_color = rgb(255, 180, 0))
         self.from_pixels = self.normal_sun_pixels
@@ -465,11 +466,28 @@ class ConfiguredDisplay(DisplayBase):
                     count_complete += np.sum(mask)
                     np.copyto(pixels[strand.slice], strip, where = mask[:,None])
 
-                percent_complete = count_complete / S_PIXEL_COUNT
+                mode_time = frame_time.current - self.mode_start_time
+                if mode_time < 1.0:
 
-                if percent_complete >= 0.98:
-                    # TODO:
-                    pixels[:] = COLOR_GREEN
+                    percent_mode_time = mode_time / 1.0
+
+                    cv2.addWeighted(pixels, percent_mode_time, self.normal_sun_pixels, 1.0 - percent_mode_time, 0.0, pixels)
+
+                else:
+
+                    percent_complete = count_complete / S_PIXEL_COUNT
+
+                    if percent_complete >= 0.98:
+                        if self.percent_complete_time:
+                            if frame_time.current >= self.percent_complete_time:
+                                print(frame_time.current, 'reward')
+                                # TODO:
+                                pixels[:] = COLOR_GREEN
+                        else:
+                            print(frame_time.current, 'complete')
+                            self.percent_complete_time = frame_time.current + 1
+                    else:
+                        self.percent_complete_time = None
 
                 if not movement:
                     if frame_time.current >= self.mode_change_time:
@@ -507,6 +525,17 @@ class ConfiguredDisplay(DisplayBase):
             percents = self.trans_ease(percent / self.trans_dist)
             colors = self.from_pixels + (self.pixel_diffs * percents[:,None])
             np.clip(colors, 0, 255, pixels)
+
+            if movement:
+                if self.mode == self.MODE_NORMAL_TO_RANDOM or self.mode == self.MODE_RANDOM_TO_RANDOM:
+                    inverse_duratation = (self.mode_change_time - self.mode_start_time) - (self.mode_change_time - frame_time.current)
+                    print(frame_time.current, 'inverse_duration', inverse_duratation, (self.mode_change_time - self.mode_start_time), (self.mode_change_time - frame_time.current))
+                    self.set_mode(frame_time, self.MODE_RANDOM_TO_NORMAL)
+                    self.mode_change_time = frame_time.current + inverse_duratation
+                    self.from_pixels = self.to_pixels
+                    self.to_pixels = self.normal_sun_pixels
+                    self.pixel_diffs = np.int16(self.to_pixels) - self.from_pixels
+                self.mode_change_time -= frame_time.delta # double speed
 
             if frame_time.current >= self.mode_change_time:
                 self.from_pixels = self.to_pixels
@@ -596,9 +625,9 @@ class ConfiguredDisplay(DisplayBase):
 
 
     def pick_next_trans(self):
-        self.trans_ease = random.choice(EASING_FN)
-        print(self.trans_ease.__doc__)
-        #self.trans_ease = EASING_FN[QtCore.QEasingCurve.Linear]
+        #self.trans_ease = random.choice(EASING_FN)
+        #print(self.trans_ease.__doc__)
+        self.trans_ease = EASING_FN[QtCore.QEasingCurve.Linear]
         self.pixel_diffs = np.int16(self.to_pixels) - self.from_pixels
         trans_prepare = self.trans_choice()
         #print(trans_prepare.__name__)
@@ -637,7 +666,7 @@ class ConfiguredDisplay(DisplayBase):
             new_speed = self.MIN_SPEED + (self.MIN_SPEED - new_speed)
         self.speed = new_speed
 
-        print('******* mode *******', mode, old_speed, new_speed)
+        print(frame_time.current, '******* mode *******', mode, old_speed, new_speed)
 
 
 class DisplaySun(DisplayBase):
@@ -1243,13 +1272,13 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
         #print('thresh', np.sum(thresh), np.sum(delta), delta.min(), delta.max())
         if self.movement_count > 0 and thresh < 3:
             self.movement_count -= 1
-            print('dec movement', self.movement_count)
+            #print('dec movement', self.movement_count)
             if self.movement_count == 0 and self.movement:
                 print('movement stopped')
                 self.movement = False
         elif self.movement_count < 10 and thresh > 10:
             self.movement_count += 1
-            print('inc movement', self.movement_count)
+            #print('inc movement', self.movement_count)
             if self.movement_count == 10 and not self.movement:
                 print('movement started')
                 self.movement = True
