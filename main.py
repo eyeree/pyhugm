@@ -60,7 +60,7 @@ def gamma_lut(correction):
 
 print('generating GAMMA_LUT')
 GAMMA_CORRECTIONS = [ x / 100.0 for x in range(70, 130) ]
-print('GAMMA_CORRECTIONS', GAMMA_CORRECTIONS)
+#print('GAMMA_CORRECTIONS', GAMMA_CORRECTIONS)
 #[0.7, 0.71, 0.72, 0.73, 0.74, 0.75, 0.76, 0.77, 0.78, 0.79, 0.8, 0.81, 0.82, 0.83, 0.84, 0.85, 0.86, 0.87, 0.88, 0.89, 0.9, 0.91, 0.92, 0.93, 0.94, 0.95, 0.96, 0.97, 0.98, 0.99, 1.0, 1.01, 1.02, 1.03, 1.04, 1.05, 1.06, 1.07, 1.08, 1.09, 1.1, 1.11, 1.12, 1.13, 1.14, 1.15, 1.16, 1.17, 1.18, 1.19, 1.2, 1.21, 1.22, 1.23, 1.24, 1.25, 1.26, 1.27, 1.28, 1.29]
 NO_CORRECTION = GAMMA_CORRECTIONS.index(1.0)
 GAMMA_LUT = [ gamma_lut(correction) for correction in GAMMA_CORRECTIONS ]
@@ -91,7 +91,7 @@ S_WIDTH = 14.5 / S_HALF
 S_HEIGHT = 14.0 / S_COUNT
 
 S_WH_RATIO = S_HEIGHT / S_WIDTH
-print('S_WH_RATIO', S_WH_RATIO, S_WIDTH, S_HEIGHT, S_HALF, S_CUT)
+#print('S_WH_RATIO', S_WH_RATIO, S_WIDTH, S_HEIGHT, S_HALF, S_CUT)
 
 Strand = collections.namedtuple('Strand',
     [
@@ -256,6 +256,7 @@ for strand in S_STRANDS:
 S_PIXEL_COUNT = np.sum(S_MASK)
 R_PIXEL_COUNT = np.sum(R_MASK)
 
+
 def diff_colors(start_color, end_color):
     return np.int16(end_color) - start_color
 
@@ -404,7 +405,9 @@ class ConfiguredDisplay(DisplayBase):
     MIN_SPEED_DELTA = 0.01
     MAX_SPEED_DELTA = 0.10
 
-    def __init__(self):
+    PULSE_TIME = 1.0
+
+    def __init__(self, completeCutoff):
         super(ConfiguredDisplay, self).__init__()
 
         self.speed = 0.5
@@ -413,6 +416,8 @@ class ConfiguredDisplay(DisplayBase):
         self.mode = self.MODE_SHOW_LEPTON
         self.next_mode = None
         self.percent_complete_time = None
+        self.pulse_end_time = None
+        self.completeCutoff = completeCutoff
 
         self.normal_sun_pixels = self.make_sun_pixels(center_color = rgb(255, 223, 147), edge_color = rgb(255, 180, 0))
         self.from_pixels = self.normal_sun_pixels
@@ -437,7 +442,13 @@ class ConfiguredDisplay(DisplayBase):
 
         self.make_random_sun_pixels()
 
-        self.effect_dist = np.random.random(NUM_PIXELS)
+        self.eclipse_sun_pixels = self.make_sun_pixels(center_color = COLOR_BLACK, edge_color = rgb(128, 0, 128), easing_fn_index = QtCore.QEasingCurve.InExpo)
+
+        self.eclipse_effect = self.make_sun_pixels(center_color = COLOR_BLACK, edge_color = rgb(255, 0, 255), easing_fn_index = QtCore.QEasingCurve.InExpo)
+        for strand in R_STRANDS:
+            self.eclipse_effect[strand.slice] = COLOR_WHITE
+
+        self.eclipse_color_diff = self.eclipse_effect - self.eclipse_sun_pixels
 
 
     def update(self, frame_time, pixels, lepton_data, movement):
@@ -450,21 +461,25 @@ class ConfiguredDisplay(DisplayBase):
                 print('no lepton data')
             else:
 
-                for strand in R_STRANDS:
-                    strip = lepton_data[strand.lepton_slice]
-                    strip = cv2.resize(strip, (1, strand.length))[:,0]
-                    strip = np.flipud(strip)
-                    mask = strip[:,R] < 250
-                    np.copyto(pixels[strand.slice], strip, where = mask[:,None])
-
                 count_complete = 0
 
                 for strand in S_STRANDS:
                     strip = lepton_data[strand.lepton_slice]
                     strip = cv2.resize(strip, (strand.length, 1))[0]
-                    mask = strip[:,R] < 250
+                    mask = (strip != COLOR_WHITE).all(1)
                     count_complete += np.sum(mask)
                     np.copyto(pixels[strand.slice], strip, where = mask[:,None])
+
+                percent_complete = count_complete / S_PIXEL_COUNT
+                percent_complete_inverse = 1.0 - percent_complete
+
+                for strand in R_STRANDS:
+                    strip = lepton_data[strand.lepton_slice]
+                    strip = cv2.resize(strip, (1, strand.length))[:,0]
+                    strip = np.flipud(strip)
+                    mask = (strip != COLOR_WHITE).all(1)
+                    np.copyto(pixels[strand.slice], strip, where = mask[:,None])
+                    pixels[strand.slice] *= percent_complete_inverse
 
                 mode_time = frame_time.current - self.mode_start_time
                 if mode_time < 1.0:
@@ -475,16 +490,36 @@ class ConfiguredDisplay(DisplayBase):
 
                 else:
 
-                    percent_complete = count_complete / S_PIXEL_COUNT
-
-                    if percent_complete >= 0.98:
+                    if percent_complete >= self.completeCutoff.value():
                         if self.percent_complete_time:
                             if frame_time.current >= self.percent_complete_time:
-                                print(frame_time.current, 'reward')
-                                # TODO:
-                                pixels[:] = COLOR_GREEN
+
+                                pixels[:] = self.eclipse_sun_pixels
+
+                                effecttive_pulse_time = self.PULSE_TIME * self.speed
+
+                                if self.pulse_end_time:
+
+                                    pulse_percent = (effecttive_pulse_time - (self.pulse_end_time - frame_time.current)) / effecttive_pulse_time
+
+                                    pulse_dist = np.abs(TOTAL_PIXEL_DIST - pulse_percent)
+                                    pulse_dist_i = 1.0 - pulse_dist
+
+                                    fn = EASING_FN[QtCore.QEasingCurve.InElastic]
+                                    eased_pulse_dist = fn(pulse_dist)
+                                    eased_pulse_dist_i = fn(pulse_dist_i)
+
+                                    pixels += self.eclipse_color_diff * eased_pulse_dist[:,None]
+                                    pixels += self.eclipse_color_diff * eased_pulse_dist_i[:,None]
+
+                                    if frame_time.current >= self.pulse_end_time:
+                                        self.pulse_end_time = frame_time.current + effecttive_pulse_time
+
+                                else:
+
+                                    self.pulse_end_time = frame_time.current + effecttive_pulse_time
                         else:
-                            print(frame_time.current, 'complete')
+                            #print(frame_time.current, 'complete')
                             self.percent_complete_time = frame_time.current + 1
                     else:
                         self.percent_complete_time = None
@@ -529,7 +564,7 @@ class ConfiguredDisplay(DisplayBase):
             if movement:
                 if self.mode == self.MODE_NORMAL_TO_RANDOM or self.mode == self.MODE_RANDOM_TO_RANDOM:
                     inverse_duratation = (self.mode_change_time - self.mode_start_time) - (self.mode_change_time - frame_time.current)
-                    print(frame_time.current, 'inverse_duration', inverse_duratation, (self.mode_change_time - self.mode_start_time), (self.mode_change_time - frame_time.current))
+                    #print(frame_time.current, 'inverse_duration', inverse_duratation, (self.mode_change_time - self.mode_start_time), (self.mode_change_time - frame_time.current))
                     self.set_mode(frame_time, self.MODE_RANDOM_TO_NORMAL)
                     self.mode_change_time = frame_time.current + inverse_duratation
                     self.from_pixels = self.to_pixels
@@ -564,7 +599,7 @@ class ConfiguredDisplay(DisplayBase):
         self.pick_next_trans()
 
 
-    def make_sun_pixels(self, center_color, edge_color):
+    def make_sun_pixels(self, center_color, edge_color, easing_fn_index = QtCore.QEasingCurve.InQuad):
 
         pixels = np.zeros([NUM_PIXELS, 3], dtype=np.uint8)
 
@@ -576,7 +611,7 @@ class ConfiguredDisplay(DisplayBase):
         pixels[r_first.slice] = [ r_compute(i) for i in r_first.distance ]
         for r in R_STRANDS[1:]: pixels[r.slice] = pixels[r_first.slice]
 
-        s_ease = easing_curve_fn(QtCore.QEasingCurve.InQuad)
+        s_ease = easing_curve_fn(easing_fn_index)
         s_start_color = center_color
         s_end_color = edge_color
         s_compute = ubound_color_fn(
@@ -752,7 +787,7 @@ class DisplayColor(DisplayBase):
 
         target_strand = self.__get_target_strand()
 
-        print('__set_adjust', target_strand.color_adjustment, index, correction)
+        #print('__set_adjust', target_strand.color_adjustment, index, correction)
 
         target_strand.color_adjustment[index] = correction
 
@@ -936,7 +971,7 @@ class UpdateThread(QtCore.QThread):
         self.__opc_client = opc.Client(self.OPC_ADDRESS)
         self.__lepton_frame = None
         self.__movement = None
-        self.__color_adjustment_enabled = True
+        self.__color_adjustment_enabled = False
 
     @QtCore.pyqtSlot()
     def stop(self):
@@ -1007,7 +1042,7 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
 
         # configured display
 
-        self.__configured_display = ConfiguredDisplay()
+        self.__configured_display = ConfiguredDisplay(self.completeCutoff)
 
         # index display
 
@@ -1112,14 +1147,6 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
         self.__lepton_thread = LeptonThread(self)
         self.__lepton_thread.lepton_frame_captured.connect(self.__lepton_frame_captured)
         self.__lepton_thread.start()
-
-        # config
-
-        self.loadButton.clicked.connect(self.__load_config)
-        self.saveButton.clicked.connect(self.__save_config)
-        self.editColorButton.clicked.connect(self.__edit_color)
-        self.pathEdit.setText('/home/pi/pyhugm/config.yaml')
-        #self.__load_config()
 
         self.fast_image = np.zeros([Lepton.ROWS, Lepton.COLS], dtype=np.float32)
         self.slow_image = np.zeros([Lepton.ROWS, Lepton.COLS], dtype=np.float32)
@@ -1246,28 +1273,67 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
     def __perform_ffc(self):
         subprocess.call(['/home/pi/LeptonModule-master/software/flir_ffc/flir_ffc'])
 
-    MOVEMENT_TOP    = 15
-    MOVEMENT_BOTTOM = 60
-    MOVEMENT_LEFT   = 20
-    MOVEMENT_RIGHT  = 60
-
-    MOVEMENT_SLICE = (slice(MOVEMENT_TOP, MOVEMENT_BOTTOM), slice(MOVEMENT_LEFT, MOVEMENT_RIGHT))
-    MOVEMENT_RECT = ((MOVEMENT_LEFT-1, MOVEMENT_TOP), (MOVEMENT_RIGHT, MOVEMENT_BOTTOM-1))
-
     def __display_image(self, lepton_frame):
 
-        # half assed filter that seems to work....
-        np.clip(lepton_frame, 8000, 8500, lepton_frame)
-        lepton_frame -= 8000
-        cv2.GaussianBlur(lepton_frame, (21, 21), 0)
-        lepton_frame[ lepton_frame < 200 ] = 0
+        clip_lower_bound = self.clipLower.value()
+        clip_upper_bound = self.clipUpper.value()
+        if clip_upper_bound < clip_lower_bound:
+            clip_upper_bound = clip_lower_bound
+        clip_range = clip_upper_bound - clip_lower_bound
 
-        gray = np.float32(lepton_frame) / 255
+        blur_size = self.blurSize.value()
+        blur_sigma = self.blurSigma.value()
+
+        zero_cutoff = self.zeroCutoff.value()
+        mask_cutoff = self.maskCutoff.value()
+
+        detect_top = self.detectTop.value()
+        detect_left = self.detectLeft.value()
+        detect_bottom = self.detectBottom.value()
+        detect_right = self.detectRight.value()
+
+        detect_slice = (slice(detect_top, detect_bottom + 1), slice(detect_left, detect_right + 1))
+        detect_rect = ((detect_left, detect_top), (detect_right, detect_bottom))
+
+        ease_fn = EASING_FN[self.easeFn.value()]
+
+        # half assed filter that seems to work....
+        np.clip(lepton_frame, clip_lower_bound, clip_upper_bound, lepton_frame)
+        lepton_frame -= clip_lower_bound
+        cv2.GaussianBlur(lepton_frame, (blur_size, blur_size), blur_sigma)
+        lepton_frame[ lepton_frame < zero_cutoff ] = 0
+        #print('lepton_frame', lepton_frame.min(), lepton_frame.max(), np.sum(lepton_frame < 100), np.sum(lepton_frame < 250), np.sum(lepton_frame < 400))
+
+        gray = np.float32(lepton_frame) / clip_range
 
         cv2.accumulateWeighted(gray, self.slow_image, 0.05)
         cv2.accumulateWeighted(gray, self.fast_image, 0.7)
 
-        delta = cv2.absdiff(self.slow_image[self.MOVEMENT_SLICE], self.fast_image[self.MOVEMENT_SLICE])
+        mask = np.fliplr(self.fast_image <= mask_cutoff)
+        #print('mask', mask.sum())
+
+        #eased = np.fliplr(EASING_FN[QtCore.QEasingCurve.Linear](1.0 - self.fast_image))
+        eased = np.subtract(1.0, np.fliplr(self.fast_image), dtype=np.float32)
+        #print('eased fi', eased.dtype, eased.min(), eased.max(), np.sum(np.isnan(eased)))
+        eased_min = eased.min()
+        eased_max = eased.max()
+        eased_ptp = eased_max - eased_min
+        if eased_ptp:
+            eased -= eased_min
+            eased *= (1.0 / eased_ptp)
+            #print('eased s', eased.dtype, eased.min(), eased.max(), np.sum(np.isnan(eased)))
+        eased = ease_fn(eased)
+        eased *= 255
+        #print('eased c', eased.dtype, eased.min(), eased.max(), np.sum(np.isnan(eased)))
+        color = cv2.cvtColor(eased, cv2.COLOR_GRAY2RGB)
+        #print('color', color.shape, color.min(), color.max())
+        rgb_data = np.uint8(color)
+        #print('rgb', rgb_data.shape, rgb_data.dtype, rgb_data.min(), rgb_data.max())
+
+        rgb_data[:,:,G] = 0
+        rgb_data[mask] = COLOR_WHITE
+
+        delta = cv2.absdiff(self.slow_image[detect_slice], self.fast_image[detect_slice])
         thresh = np.sum(cv2.threshold(delta, 0.3, 1.0, cv2.THRESH_BINARY)[1])
         #print('thresh', np.sum(thresh), np.sum(delta), delta.min(), delta.max())
         if self.movement_count > 0 and thresh < 3:
@@ -1283,18 +1349,10 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
                 print('movement started')
                 self.movement = True
 
-        eased = np.fliplr(EASING_FN[QtCore.QEasingCurve.OutInQuint](1.0 - self.fast_image))
-        rgb_data = np.uint8(cv2.cvtColor(eased * 255, cv2.COLOR_GRAY2RGB))
-
-        rgb_data[:,:,G] = 0
-        mask = rgb_data[:,:,R] < 250
-
         self.__update_thread.set_lepton_frame(rgb_data, self.movement)
 
-        image_data = np.zeros_like(rgb_data)
-        image_data[:, :] = COLOR_WHITE
-        np.copyto(image_data, rgb_data, where = mask[:,:,None])
-        cv2.rectangle(image_data, self.MOVEMENT_RECT[0], self.MOVEMENT_RECT[1], (0, 255, 0), 1)
+        image_data = rgb_data.copy()
+        cv2.rectangle(image_data, detect_rect[0], detect_rect[1], (0, 255, 0), 1)
 
         bytesPerLine = 3 * Lepton.COLS
         image = QtGui.QImage(image_data.data, Lepton.COLS, Lepton.ROWS, bytesPerLine, QtGui.QImage.Format_RGB888)
@@ -1311,7 +1369,7 @@ class MainWindow(QtGui.QMainWindow, ui.Ui_MainWindow):
         self.blueColorSpinBox.setValue(color[B])
 
     def __on_adjustment_changed(self, adjustment):
-        print('__on_adjustment_changed', adjustment)
+        #print('__on_adjustment_changed', adjustment)
         self.redAdjustmentSlider.setValue(adjustment[R])
         self.redAdjustmentDoubleSpinBox.setValue(GAMMA_CORRECTIONS[adjustment[R]])
         self.greenAdjustmentSlider.setValue(adjustment[G])
