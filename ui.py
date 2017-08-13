@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'hugm.ui'
 #
-# Created: Sun Aug 13 02:39:22 2017
+# Created: Sun Aug 13 18:51:30 2017
 #      by: PyQt4 UI code generator 4.11.2
 #
 # WARNING! All changes made in this file will be lost!
@@ -60,7 +60,7 @@ class Ui_MainWindow(object):
         self.toolBox.setSizePolicy(sizePolicy)
         self.toolBox.setObjectName(_fromUtf8("toolBox"))
         self.configPage = QtGui.QWidget()
-        self.configPage.setGeometry(QtCore.QRect(0, 0, 847, 538))
+        self.configPage.setGeometry(QtCore.QRect(0, 0, 98, 28))
         self.configPage.setObjectName(_fromUtf8("configPage"))
         self.clipLower = QtGui.QSpinBox(self.configPage)
         self.clipLower.setGeometry(QtCore.QRect(10, 0, 71, 33))
@@ -130,7 +130,7 @@ class Ui_MainWindow(object):
         self.completeCutoff.setObjectName(_fromUtf8("completeCutoff"))
         self.toolBox.addItem(self.configPage, _fromUtf8(""))
         self.colorAdjustPage = QtGui.QWidget()
-        self.colorAdjustPage.setGeometry(QtCore.QRect(0, 0, 847, 538))
+        self.colorAdjustPage.setGeometry(QtCore.QRect(0, 0, 859, 538))
         self.colorAdjustPage.setObjectName(_fromUtf8("colorAdjustPage"))
         self.horizontalLayout_11 = QtGui.QHBoxLayout(self.colorAdjustPage)
         self.horizontalLayout_11.setObjectName(_fromUtf8("horizontalLayout_11"))
@@ -264,12 +264,14 @@ class Ui_MainWindow(object):
         self.formLayout.setWidget(2, QtGui.QFormLayout.LabelRole, self.label_7)
         self.horizontalLayout_11.addWidget(self.groupBox)
         self.adjustmentGroupBox = QtGui.QGroupBox(self.colorAdjustPage)
+        self.adjustmentGroupBox.setEnabled(True)
         sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.adjustmentGroupBox.sizePolicy().hasHeightForWidth())
         self.adjustmentGroupBox.setSizePolicy(sizePolicy)
         self.adjustmentGroupBox.setCheckable(True)
+        self.adjustmentGroupBox.setChecked(False)
         self.adjustmentGroupBox.setObjectName(_fromUtf8("adjustmentGroupBox"))
         self.formLayout_4 = QtGui.QFormLayout(self.adjustmentGroupBox)
         self.formLayout_4.setFieldGrowthPolicy(QtGui.QFormLayout.AllNonFixedFieldsGrow)
@@ -397,7 +399,7 @@ class Ui_MainWindow(object):
         self.horizontalLayout_11.setStretch(2, 1)
         self.toolBox.addItem(self.colorAdjustPage, _fromUtf8(""))
         self.indexPage = QtGui.QWidget()
-        self.indexPage.setGeometry(QtCore.QRect(0, 0, 847, 538))
+        self.indexPage.setGeometry(QtCore.QRect(0, 0, 309, 92))
         self.indexPage.setObjectName(_fromUtf8("indexPage"))
         self.horizontalLayout = QtGui.QHBoxLayout(self.indexPage)
         self.horizontalLayout.setObjectName(_fromUtf8("horizontalLayout"))
@@ -457,7 +459,7 @@ class Ui_MainWindow(object):
         MainWindow.setCentralWidget(self.centralwidget)
 
         self.retranslateUi(MainWindow)
-        self.toolBox.setCurrentIndex(0)
+        self.toolBox.setCurrentIndex(1)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):

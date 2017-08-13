@@ -1013,7 +1013,7 @@ class UpdateThread(QtCore.QThread):
 
             self.__display.update(frame_time, pixels, self.__lepton_frame, self.__movement)
 
-            if False: # self.__color_adjustment_enabled:
+            if self.__color_adjustment_enabled:
                 for strand in COLOR_ADJUSTED_STRANDS:
                     if strand.color_adjustment[R] != NO_CORRECTION:
                         pixels[strand.slice, R_SLICE] = GAMMA_LUT[strand.color_adjustment[R]][pixels[strand.slice, R_SLICE]]

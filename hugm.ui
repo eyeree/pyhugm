@@ -71,8 +71,8 @@
          <rect>
           <x>0</x>
           <y>0</y>
-          <width>572</width>
-          <height>538</height>
+          <width>98</width>
+          <height>28</height>
          </rect>
         </property>
         <attribute name="label">
@@ -318,7 +318,7 @@
          <rect>
           <x>0</x>
           <y>0</y>
-          <width>572</width>
+          <width>859</width>
           <height>538</height>
          </rect>
         </property>
@@ -567,7 +567,7 @@
          <item>
           <widget class="QGroupBox" name="adjustmentGroupBox">
            <property name="enabled">
-            <bool>false</bool>
+            <bool>true</bool>
            </property>
            <property name="sizePolicy">
             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
@@ -580,6 +580,9 @@
            </property>
            <property name="checkable">
             <bool>true</bool>
+           </property>
+           <property name="checked">
+            <bool>false</bool>
            </property>
            <layout class="QFormLayout" name="formLayout_4">
             <property name="fieldGrowthPolicy">
